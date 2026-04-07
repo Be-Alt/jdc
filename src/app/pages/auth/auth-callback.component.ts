@@ -1,11 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { clearApiSession } from './api-session';
-import { setAuthError } from './auth-error';
-import { neonAuthClient } from './neon-auth.client';
-import { neonAuthConfig } from './neon-auth.config';
-import { syncProfileWithApi } from './profile-sync';
-import { waitForAuthenticatedUser } from './auth-session';
+import { clearApiSession } from '../../helpers/api-session';
+import { setAuthError } from '../../helpers/auth-error';
+import { waitForAuthenticatedUser } from '../../helpers/auth-session';
+import { neonAuthClient } from '../../helpers/neon-auth.client';
+import { neonAuthConfig } from '../../helpers/neon-auth.config';
+import { syncProfileWithApi } from '../../helpers/profile-sync';
 
 @Component({
   selector: 'app-auth-callback',

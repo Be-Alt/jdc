@@ -43,12 +43,12 @@ function handleMethodAndCors(
   methods: string
 ): boolean {
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, getCorsHeaders(methods));
+    res.writeHead(204, getCorsHeaders(methods, req));
     res.end();
     return true;
   }
 
-  applyCors(res, methods);
+  applyCors(res, methods, req);
   return false;
 }
 

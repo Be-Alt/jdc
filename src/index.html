@@ -2,10 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>AuthCodex</title>
+  <title>JDC</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script>
+    (function () {
+      var cryptoObject = globalThis.crypto || globalThis.msCrypto;
+
+      if (!cryptoObject || typeof cryptoObject.randomUUID === 'function') {
+        return;
+      }
+
+      cryptoObject.randomUUID = function () {
+        var bytes = new Uint8Array(16);
+        cryptoObject.getRandomValues(bytes);
+
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+
+        var hex = Array.from(bytes, function (byte) {
+          return byte.toString(16).padStart(2, '0');
+        });
+
+        return [
+          hex.slice(0, 4).join(''),
+          hex.slice(4, 6).join(''),
+          hex.slice(6, 8).join(''),
+          hex.slice(8, 10).join(''),
+          hex.slice(10, 16).join('')
+        ].join('-');
+      };
+    })();
+  </script>
 </head>
 <body>
   <app-root></app-root>

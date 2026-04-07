@@ -1,17 +1,31 @@
 import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { apiFetch, clearApiSession, hasConfiguredApiBaseUrl } from './api-session';
-import { neonAuthClient } from './neon-auth.client';
-import { waitForAuthenticatedUser } from './auth-session';
-import { syncProfileWithApi } from './profile-sync';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  apiFetch,
+  clearApiSession,
+  hasConfiguredApiBaseUrl
+} from '../../helpers/api-session';
+import { waitForAuthenticatedUser } from '../../helpers/auth-session';
+import { neonAuthClient } from '../../helpers/neon-auth.client';
+import { neonAuthConfig } from '../../helpers/neon-auth.config';
+import { syncProfileWithApi } from '../../helpers/profile-sync';
 
 @Component({
   selector: 'app-dashboard',
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent {
   private readonly router = inject(Router);
 
+  protected readonly allowedDomainsLabel = neonAuthConfig.allowedEmailDomains.join(', ');
+  protected readonly navItems = [
+    { label: 'Vue d’ensemble', path: '/dashboard/overview', badge: '01', exact: true },
+    { label: 'Élèves', path: '/dashboard/students', badge: '02', exact: false },
+    { label: 'Présences', path: '/dashboard/attendance', badge: '03', exact: false },
+    { label: 'Suivis', path: '/dashboard/follow-up', badge: '04', exact: false },
+    { label: 'Paramètres', path: '/dashboard/settings', badge: '05', exact: false }
+  ];
   protected isLoading = true;
   protected isSigningOut = false;
   protected errorMessage = '';
@@ -20,38 +34,11 @@ export class DashboardComponent {
   protected userEmail = '';
   protected currentUserId = '';
   protected currentUserRole = 'unknown';
-  protected endpointResult = '';
   protected endpointError = '';
+  protected isMobileNavOpen = false;
 
   constructor() {
     void this.loadUser();
-  }
-
-  protected async testEndpoint(endpoint: 'admin-data' | 'user-data' | 'student-data'): Promise<void> {
-    this.endpointResult = '';
-    this.endpointError = '';
-
-    if (!this.currentUserId || !this.userEmail) {
-      this.endpointError = 'Utilisateur non charge.';
-      return;
-    }
-
-    try {
-      const response = await apiFetch(`/${endpoint}`, {
-        method: 'POST'
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Endpoint call failed.');
-      }
-
-      this.currentUserRole = payload.role ?? this.currentUserRole;
-      this.endpointResult = JSON.stringify(payload, null, 2);
-    } catch (error) {
-      this.endpointError = error instanceof Error ? error.message : 'Endpoint call failed.';
-    }
   }
 
   protected async signOut(): Promise<void> {
@@ -72,6 +59,14 @@ export class DashboardComponent {
       this.errorMessage =
         error instanceof Error ? error.message : 'La déconnexion a échoué.';
     }
+  }
+
+  protected toggleMobileNav(): void {
+    this.isMobileNavOpen = !this.isMobileNavOpen;
+  }
+
+  protected closeMobileNav(): void {
+    this.isMobileNavOpen = false;
   }
 
   private async loadUser(): Promise<void> {

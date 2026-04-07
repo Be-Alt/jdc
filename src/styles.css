@@ -17,3 +17,11 @@ body {
     linear-gradient(180deg, #f4f7fb 0%, #edf2f7 45%, #e2e8f0 100%);
   color: #0f172a;
 }
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}

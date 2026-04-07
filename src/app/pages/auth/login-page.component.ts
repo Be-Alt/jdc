@@ -1,10 +1,10 @@
-import { clearApiSession } from './api-session';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { clearAuthError, getAuthError } from './auth-error';
-import { neonAuthClient } from './neon-auth.client';
-import { neonAuthConfig } from './neon-auth.config';
-import { getActiveSession } from './auth-session';
+import { clearApiSession } from '../../helpers/api-session';
+import { clearAuthError, getAuthError } from '../../helpers/auth-error';
+import { getActiveSession } from '../../helpers/auth-session';
+import { neonAuthClient } from '../../helpers/neon-auth.client';
+import { neonAuthConfig } from '../../helpers/neon-auth.config';
 
 @Component({
   selector: 'app-login-page',
@@ -18,6 +18,7 @@ export class LoginPageComponent {
   protected readonly callbackUrl = neonAuthConfig.callbackUrl;
   protected readonly supportEmail = neonAuthConfig.supportEmail;
   protected readonly neonAuthUrl = neonAuthConfig.neonAuthUrl;
+  protected readonly allowedDomainsLabel = neonAuthConfig.allowedEmailDomains.join(', ');
   protected errorMessage = '';
   protected isLoading = false;
   private hasBlockingAuthError = false;

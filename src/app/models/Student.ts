@@ -1,0 +1,25 @@
+export type Student = {
+  enrollment_id: string;
+  person_id: string;
+  school_year_id: string;
+  school_year_label: string;
+  organization_id: string | null;
+  is_shared_with_org: boolean;
+  section_id: string | null;
+  section_code: string | null;
+  section_level: number | null;
+  section_type: string | null;
+  section_label: string | null;
+  status: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  teacher_ids: string[];
+  teacher_names: string[];
+  dys_ids: number[];
+  dys_names: string[];
+  accommodation_ids: number[];
+  accommodation_names: string[];
+};

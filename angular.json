@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "authCodex": {
+    "jdc": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:class": {
@@ -47,6 +47,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": ".htaccess",
+                "input": "public",
+                "output": "/"
               }
             ],
             "styles": [
@@ -81,10 +86,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "authCodex:build:production"
+              "buildTarget": "jdc:build:production"
             },
             "development": {
-              "buildTarget": "authCodex:build:development"
+              "buildTarget": "jdc:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -104,6 +109,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": ".htaccess",
+                "input": "public",
+                "output": "/"
               }
             ],
             "styles": [

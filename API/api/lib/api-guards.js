@@ -4,11 +4,11 @@ import { applyCors, getCorsHeaders } from './cors.js';
 import { enforceRateLimit } from './rate-limit.js';
 function handleMethodAndCors(req, res, methods) {
     if (req.method === 'OPTIONS') {
-        res.writeHead(204, getCorsHeaders(methods));
+        res.writeHead(204, getCorsHeaders(methods, req));
         res.end();
         return true;
     }
-    applyCors(res, methods);
+    applyCors(res, methods, req);
     return false;
 }
 export function withPublicEndpoint(methods, handler, options) {
