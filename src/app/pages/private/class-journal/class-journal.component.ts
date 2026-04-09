@@ -1,6 +1,7 @@
 import { AsyncPipe, DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { firstValueFrom, forkJoin, map, shareReplay, startWith, switchMap } from 'rxjs';
+import { ClassJournalEntry } from '../../../models/ClassJournal';
 import { ProgramNetwork, ProgramSkill, ProgramUaa, SectionProgram } from '../../../models/Program';
 import { StudentOption } from '../../../models/StudentOption';
 import { WeeklyScheduleConfig, WeeklyScheduleSlot } from '../../../models/WeeklySchedule';
@@ -128,6 +129,35 @@ type SlotProgramState = {
                   <div class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
                     <section class="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
                       <div class="space-y-4">
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div class="flex items-center justify-between gap-3">
+                            <div>
+                              <p class="text-sm font-semibold text-slate-900">Absence enseignant</p>
+                              <p class="mt-1 text-xs text-slate-500">Indique si le professeur est absent pour ce créneau.</p>
+                            </div>
+
+                            <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                              <input
+                                type="checkbox"
+                                [checked]="journalService.getDraft(getSlotKey(slot)).teacherIsAbsent"
+                                (change)="setTeacherAbsent(slot, $any($event.target).checked)"
+                              />
+                              <span>Absent</span>
+                            </label>
+                          </div>
+
+                          @if (journalService.getDraft(getSlotKey(slot)).teacherIsAbsent) {
+                            <label class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                              <input
+                                type="checkbox"
+                                [checked]="journalService.getDraft(getSlotKey(slot)).teacherAbsenceHasCm"
+                                (change)="setTeacherAbsenceHasCm(slot, $any($event.target).checked)"
+                              />
+                              <span>CM / certificat fourni</span>
+                            </label>
+                          }
+                        </div>
+
                         <label class="block space-y-2">
                           <span class="text-sm font-semibold text-slate-900">Section travaillée</span>
                           <select
@@ -183,20 +213,76 @@ type SlotProgramState = {
                             </div>
                           }
                         }
+
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p class="text-sm font-semibold text-slate-900">Statut des élèves</p>
+                          <p class="mt-1 text-xs text-slate-500">Choisis un statut par élève pour ce créneau.</p>
+
+                          <div class="mt-4 space-y-3">
+                            @for (student of getStudentsForSlot(slot, vm.students); track student.enrollment_id) {
+                              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                  <div>
+                                    <p class="text-sm font-semibold text-slate-900">
+                                      {{ student.first_name }} {{ student.last_name }}
+                                    </p>
+                                    @if (student.section_code) {
+                                      <p class="text-xs text-slate-500">{{ student.section_code }}</p>
+                                    }
+                                  </div>
+
+                                  <select
+                                    [value]="getStudentAttendanceStatus(slot, student.enrollment_id)"
+                                    (change)="setStudentAttendanceStatus(slot, student.enrollment_id, $any($event.target).value)"
+                                    class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 outline-none lg:w-52"
+                                  >
+                                    <option value="present">Présent</option>
+                                    <option value="absent">Absent</option>
+                                    <option value="late">En retard</option>
+                                    <option value="excused">Excusé</option>
+                                  </select>
+                                </div>
+                              </div>
+                            }
+                          </div>
+                        </div>
                       </div>
                     </section>
 
                     <aside class="rounded-[1.5rem] border border-amber-100 bg-amber-50 p-4">
-                      <label class="block space-y-2">
-                        <span class="text-sm font-semibold text-slate-900">Notes libres</span>
-                        <textarea
-                          [value]="journalService.getDraft(getSlotKey(slot)).notes"
-                          (input)="updateNotes(slot, $any($event.target).value)"
-                          rows="10"
-                          class="w-full resize-y rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none"
-                          placeholder="Objectif, déroulé, devoir, observation, adaptation..."
-                        ></textarea>
-                      </label>
+                      <div class="space-y-4">
+                        <label class="block space-y-2">
+                          <span class="text-sm font-semibold text-slate-900">Notes libres</span>
+                          <textarea
+                            [value]="journalService.getDraft(getSlotKey(slot)).notes"
+                            (input)="updateNotes(slot, $any($event.target).value)"
+                            rows="10"
+                            class="w-full resize-y rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none"
+                            placeholder="Objectif, déroulé, devoir, observation, adaptation..."
+                          ></textarea>
+                        </label>
+
+                        @if (saveErrorBySlotKey[getSlotKey(slot)]) {
+                          <p class="rounded-2xl bg-rose-100 px-4 py-3 text-sm font-medium text-rose-800">
+                            {{ saveErrorBySlotKey[getSlotKey(slot)] }}
+                          </p>
+                        }
+
+                        @if (saveSuccessBySlotKey[getSlotKey(slot)]) {
+                          <p class="rounded-2xl bg-emerald-100 px-4 py-3 text-sm font-medium text-emerald-800">
+                            Enregistré à {{ saveSuccessBySlotKey[getSlotKey(slot)] }}
+                          </p>
+                        }
+
+                        <button
+                          type="button"
+                          (click)="saveSlot(slot)"
+                          [disabled]="isSavingSlotKey === getSlotKey(slot)"
+                          class="w-full rounded-2xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 disabled:cursor-wait disabled:bg-slate-400"
+                        >
+                          {{ isSavingSlotKey === getSlotKey(slot) ? 'Enregistrement...' : 'Enregistrer la séance' }}
+                        </button>
+                      </div>
                     </aside>
                   </div>
                 }
@@ -208,13 +294,16 @@ type SlotProgramState = {
     </section>
   `
 })
-export class ClassJournalComponent {
+export class ClassJournalComponent implements OnInit {
   protected readonly settingsService = inject(SettingsService);
   protected readonly journalService = inject(ClassJournalService);
 
   protected selectedDate = new Date();
   protected viewMode: 'day' | 'week' | 'month' = 'day';
   protected slotProgramStates: Record<string, SlotProgramState> = {};
+  protected isSavingSlotKey = '';
+  protected saveErrorBySlotKey: Record<string, string> = {};
+  protected saveSuccessBySlotKey: Record<string, string> = {};
 
   protected readonly vm$ = forkJoin({
     schedule: this.settingsService.getWeeklySchedule$(),
@@ -232,6 +321,10 @@ export class ClassJournalComponent {
     }),
     shareReplay(1)
   );
+
+  ngOnInit(): void {
+    void this.loadEntriesForSelectedDate();
+  }
 
   protected get viewModeLabel(): string {
     switch (this.viewMode) {
@@ -290,6 +383,7 @@ export class ClassJournalComponent {
 
   protected selectDate(date: Date): void {
     this.selectedDate = new Date(date);
+    void this.loadEntriesForSelectedDate();
   }
 
   protected getSlotsForSelectedDate(schedule: WeeklyScheduleConfig): WeeklyScheduleSlot[] {
@@ -325,7 +419,70 @@ export class ClassJournalComponent {
 
   protected async selectSectionIdForSlot(slot: WeeklyScheduleSlot, sectionId: string): Promise<void> {
     const slotKey = this.getSlotKey(slot);
-    this.journalService.updateDraft(slotKey, { sectionId, networkId: '' });
+    await this.selectSectionForSlotKey(slotKey, sectionId);
+  }
+
+  protected async saveSlot(slot: WeeklyScheduleSlot): Promise<void> {
+    const slotKey = this.getSlotKey(slot);
+    const draft = this.journalService.getDraft(slotKey);
+
+    this.isSavingSlotKey = slotKey;
+    this.saveErrorBySlotKey = {
+      ...this.saveErrorBySlotKey,
+      [slotKey]: ''
+    };
+    this.saveSuccessBySlotKey = {
+      ...this.saveSuccessBySlotKey,
+      [slotKey]: ''
+    };
+
+    try {
+      const entry = await firstValueFrom(this.journalService.saveEntry$({
+        date: this.toIsoDate(this.selectedDate),
+        weeklyScheduleSlotId: slot.id ?? null,
+        slotKey,
+        title: slot.label,
+        startsAt: slot.starts_at,
+        endsAt: slot.ends_at,
+        sectionId: draft.sectionId || null,
+        networkId: draft.networkId || null,
+        notes: draft.notes,
+        teacherIsAbsent: draft.teacherIsAbsent,
+        teacherAbsenceHasCm: draft.teacherAbsenceHasCm,
+        status: 'draft',
+        selectedSkillIds: draft.selectedSkillIds,
+        selectedResourceIds: draft.selectedResourceIds
+        ,
+        studentStatuses: Object.entries(draft.studentStatuses).map(([studentEnrollmentId, attendanceStatus]) => ({
+          studentEnrollmentId,
+          attendanceStatus
+        }))
+      }));
+
+      this.journalService.hydrateEntries([entry]);
+      this.saveSuccessBySlotKey = {
+        ...this.saveSuccessBySlotKey,
+        [slotKey]: this.formatSavedTime(new Date())
+      };
+    } catch (error) {
+      this.saveErrorBySlotKey = {
+        ...this.saveErrorBySlotKey,
+        [slotKey]: error instanceof Error ? error.message : 'Impossible d’enregistrer cette séance.'
+      };
+    } finally {
+      this.isSavingSlotKey = '';
+    }
+  }
+
+  private async selectSectionForSlotKey(
+    slotKey: string,
+    sectionId: string,
+    preferredNetworkId = ''
+  ): Promise<void> {
+    this.journalService.updateDraft(slotKey, {
+      sectionId,
+      networkId: preferredNetworkId
+    });
 
     if (!sectionId) {
       return;
@@ -340,7 +497,7 @@ export class ClassJournalComponent {
 
     try {
       const networks = await firstValueFrom(this.settingsService.getProgramNetworksBySectionId$(sectionId));
-      const network = networks[0];
+      const network = networks.find((item) => item.id === preferredNetworkId) ?? networks[0];
 
       if (!network) {
         this.slotProgramStates[slotKey] = {
@@ -352,7 +509,10 @@ export class ClassJournalComponent {
         return;
       }
 
-      this.journalService.updateDraft(slotKey, { networkId: network.id });
+      this.journalService.updateDraft(slotKey, {
+        sectionId,
+        networkId: network.id
+      });
       const program = await firstValueFrom(this.settingsService.getProgramBySectionId$(sectionId, network.id));
       this.slotProgramStates[slotKey] = {
         isLoading: false,
@@ -384,6 +544,33 @@ export class ClassJournalComponent {
 
   protected toggleResource(slot: WeeklyScheduleSlot, resourceId: string): void {
     this.journalService.toggleResource(this.getSlotKey(slot), resourceId);
+  }
+
+  protected setTeacherAbsent(slot: WeeklyScheduleSlot, teacherIsAbsent: boolean): void {
+    this.journalService.setTeacherAbsence(this.getSlotKey(slot), teacherIsAbsent);
+  }
+
+  protected setTeacherAbsenceHasCm(slot: WeeklyScheduleSlot, teacherAbsenceHasCm: boolean): void {
+    this.journalService.setTeacherAbsenceHasCm(this.getSlotKey(slot), teacherAbsenceHasCm);
+  }
+
+  protected getStudentAttendanceStatus(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string
+  ): 'present' | 'absent' | 'late' | 'excused' {
+    return this.journalService.getDraft(this.getSlotKey(slot)).studentStatuses[studentEnrollmentId] ?? 'present';
+  }
+
+  protected setStudentAttendanceStatus(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    attendanceStatus: 'present' | 'absent' | 'late' | 'excused'
+  ): void {
+    this.journalService.setStudentAttendanceStatus(
+      this.getSlotKey(slot),
+      studentEnrollmentId,
+      attendanceStatus
+    );
   }
 
   protected isSkillSelected(slot: WeeklyScheduleSlot, skillId: string): boolean {
@@ -445,5 +632,32 @@ export class ClassJournalComponent {
 
   private formatMonthTitle(date: Date): string {
     return new Intl.DateTimeFormat('fr-BE', { month: 'long', year: 'numeric' }).format(date);
+  }
+
+  private async loadEntriesForSelectedDate(): Promise<void> {
+    try {
+      const entries = await firstValueFrom(this.journalService.getEntriesByDate$(this.toIsoDate(this.selectedDate)));
+      this.journalService.hydrateEntries(entries);
+      await this.restoreProgramsForEntries(entries);
+    } catch {
+      // The journal stays usable as a local draft even if the saved entries cannot be loaded.
+    }
+  }
+
+  private async restoreProgramsForEntries(entries: ClassJournalEntry[]): Promise<void> {
+    const entriesWithSections = entries.filter((entry) => entry.section_id);
+
+    await Promise.all(
+      entriesWithSections.map((entry) =>
+        this.selectSectionForSlotKey(entry.slot_key, entry.section_id as string, entry.network_id ?? '')
+      )
+    );
+  }
+
+  private formatSavedTime(date: Date): string {
+    return new Intl.DateTimeFormat('fr-BE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
   }
 }
