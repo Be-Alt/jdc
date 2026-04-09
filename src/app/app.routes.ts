@@ -4,8 +4,10 @@ import { AuthCallbackComponent } from './pages/auth/auth-callback.component';
 import { LoginPageComponent } from './pages/auth/login-page.component';
 import { DashboardComponent } from './pages/private/dashboard.component';
 import { DashboardHomeComponent } from './pages/private/dashboard-home.component';
+import { ClassJournalComponent } from './pages/private/class-journal/class-journal.component';
 import { PrivatePlaceholderComponent } from './pages/private/private-placeholder.component';
 import { SettingsComponent } from './pages/private/settings/settings.component';
+import { SettingsProgramPageComponent } from './pages/private/settings/settings-program-page.component';
 import { StudentDetailComponent } from './pages/private/students/student-detail.component';
 import { StudentFormComponent } from './pages/private/students/student-form.component';
 import { Students } from './pages/private/students/students';
@@ -51,6 +53,10 @@ export const routes: Routes = [
         component: StudentFormComponent
       },
       {
+        path: 'class-journal',
+        component: ClassJournalComponent
+      },
+      {
         path: 'attendance',
         component: PrivatePlaceholderComponent,
         data: {
@@ -65,6 +71,10 @@ export const routes: Routes = [
           title: 'Suivis',
           description: 'Cette section accueillera les remarques, observations, actions et le suivi pédagogique des élèves.'
         }
+      },
+      {
+        path: 'settings/program',
+        component: SettingsProgramPageComponent
       },
       {
         path: 'settings',

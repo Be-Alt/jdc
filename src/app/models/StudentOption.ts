@@ -4,6 +4,8 @@ export type StudentOption = {
   first_name: string;
   last_name: string;
   school_year_label: string;
+  section_id: string | null;
+  section_level: number | null;
   section_code: string | null;
   section_label: string | null;
 };

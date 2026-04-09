@@ -9,6 +9,8 @@ type StudentOptionRow = {
   first_name: string;
   last_name: string;
   school_year_label: string;
+  section_id: string | null;
+  section_level: number | null;
   section_code: string | null;
   section_label: string | null;
 };
@@ -24,6 +26,8 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         p.first_name,
         p.last_name,
         sy.label as school_year_label,
+        sec.id::text as section_id,
+        sec.level as section_level,
         sec.code as section_code,
         sec.label as section_label
       from public.student_enrollments se

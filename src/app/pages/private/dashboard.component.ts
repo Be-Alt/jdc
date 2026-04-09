@@ -22,9 +22,10 @@ export class DashboardComponent {
   protected readonly navItems = [
     { label: 'Vue d’ensemble', path: '/dashboard/overview', badge: '01', exact: true },
     { label: 'Élèves', path: '/dashboard/students', badge: '02', exact: false },
-    { label: 'Présences', path: '/dashboard/attendance', badge: '03', exact: false },
-    { label: 'Suivis', path: '/dashboard/follow-up', badge: '04', exact: false },
-    { label: 'Paramètres', path: '/dashboard/settings', badge: '05', exact: false }
+    { label: 'Journal', path: '/dashboard/class-journal', badge: '03', exact: false },
+    { label: 'Présences', path: '/dashboard/attendance', badge: '04', exact: false },
+    { label: 'Suivis', path: '/dashboard/follow-up', badge: '05', exact: false },
+    { label: 'Paramètres', path: '/dashboard/settings', badge: '06', exact: false }
   ];
   protected isLoading = true;
   protected isSigningOut = false;

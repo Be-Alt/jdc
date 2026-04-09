@@ -1,12 +1,19 @@
 import { Component } from '@angular/core';
 import { SettingsDysComponent } from './settings-dys.component';
+import { SettingsProgramComponent } from './settings-program.component';
 import { SettingsSchoolsComponent } from './settings-schools.component';
 import { SettingsTeachersComponent } from './settings-teachers.component';
 import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.component';
 
 @Component({
   selector: 'app-settings',
-  imports: [SettingsWeeklyScheduleComponent, SettingsDysComponent, SettingsSchoolsComponent, SettingsTeachersComponent],
+  imports: [
+    SettingsWeeklyScheduleComponent,
+    SettingsDysComponent,
+    SettingsSchoolsComponent,
+    SettingsTeachersComponent,
+    SettingsProgramComponent
+  ],
   template: `
     <section class="space-y-6">
       <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -24,6 +31,7 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
       <app-settings-dys />
       <app-settings-schools />
       <app-settings-teachers />
+      <app-settings-program />
     </section>
   `
 })

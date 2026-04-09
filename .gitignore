@@ -44,3 +44,4 @@ coverage/
 *.seed
 *.pid.lock
 .vercel
+.env*.local

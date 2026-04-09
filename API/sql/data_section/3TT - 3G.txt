@@ -1,0 +1,201 @@
+==============================
+COMPÉTENCES À DÉVELOPPER
+==============================
+
+MOBILISER DES PROPRIÉTÉS DE TRIANGLES ISOMÉTRIQUES, DE TRIANGLES SEMBLABLES
+EXPLOITER DES CONFIGURATIONS DE THALÈS
+DÉMONTRER DES PROPRIÉTÉS
+
+MOBILISER LES PROPRIÉTÉS DU TRIANGLE RECTANGLE POUR RÉSOUDRE DES PROBLÈMES DE CALCUL OU DE CONSTRUCTION
+DÉMONTRER DES PROPRIÉTÉS
+
+RECHERCHER DES INFORMATIONS SUR DES FONCTIONS À PARTIR DE LEUR REPRÉSENTATION GRAPHIQUE
+
+RECONNAITRE UNE SITUATION QUI SE MODÉLISE PAR UNE FONCTION DU PREMIER DEGRÉ
+TRAITER UN PROBLÈME QUI UTILISE DES FONCTIONS DU PREMIER DEGRÉ
+
+MAITRISER DES OUTILS ALGÉBRIQUES POUR RÉSOUDRE DES PROBLÈMES
+
+
+==============================
+PROCESSUS
+==============================
+
+--- APPLIQUER ---
+Calculer des amplitudes d’angles et justifier à partir des relations entre angles inscrits et angles au centre dans un cercle
+Calculer une longueur d’un segment à partir d’égalités de rapports
+Construire une figure à partir d’égalités de rapports
+Dégager des égalités de rapports à partir de triangles semblables
+
+Utiliser la réciproque du théorème de Pythagore pour vérifier qu’un triangle est rectangle
+Utiliser les propriétés métriques du triangle rectangle dans des calculs (longueur de segments), des problèmes de construction
+Calculer la distance entre deux points dans un repère orthonormé
+Construire un segment de longueur √a avec a naturel
+
+Rechercher le domaine, l’ensemble-image et les points d'intersection du graphique de cette fonction avec les axes
+Rechercher les points d'intersection des graphiques de deux fonctions
+Écrire les parties de ℝ où une fonction est positive, négative ou nulle et construire le tableau de signe correspondant
+Déterminer les parties de ℝ où une fonction est croissante ou décroissante
+Résoudre des équations et inéquations de type : f(x)=g(x), f(x)<g(x), f(x)>g(x) (y compris lorsque g est une fonction constante)
+
+Tracer le graphique d’une fonction du premier degré et d’une fonction constante
+Déterminer les paramètres m et p d’une fonction répondant à certaines conditions
+Déterminer l’image d’un réel par une fonction du premier degré ou par une fonction constante
+Vérifier l’appartenance d’un point du plan au graphique d’une fonction du premier degré ou d’une fonction constante
+Déterminer algébriquement et graphiquement le point d’intersection des graphiques de deux fonctions du premier degré et/ou constantes
+Résoudre une inéquation du premier degré
+
+Résoudre un système de deux équations à deux inconnues
+Calculer une valeur numérique d’un polynôme
+Déterminer les conditions d’existence de fractions rationnelles et les simplifier
+Résoudre une équation contenant des fractions rationnelles
+Modifier la forme d’une expression algébrique dans le but de résoudre une équation ou de simplifier une fraction
+
+
+--- TRANSFÉRER ---
+Démontrer une propriété en utilisant des relations entre angles inscrits et angles au centre dans un cercle
+Démontrer que deux triangles sont isométriques pour en dégager une propriété
+Démontrer que deux triangles sont semblables pour en dégager une propriété/un résultat
+Résoudre un problème faisant appel aux triangles isométriques
+Résoudre un problème faisant appel aux triangles semblables
+
+Démontrer des propriétés géométriques en utilisant le théorème de Pythagore ou les propriétés métriques du triangle rectangle
+Résoudre un problème (calcul d’une longueur, construction) en utilisant le théorème de Pythagore et les propriétés métriques du triangle rectangle
+
+Résoudre un problème nécessitant la recherche d'éléments caractéristiques du graphique d'une fonction
+Tracer le graphique d’une fonction qui répond aux conditions données
+
+Traduire une situation contextualisée par une fonction, une équation ou une inéquation du premier degré
+Résoudre un problème qui nécessite l’utilisation de fonctions, d’équations ou d’inéquations du premier degré
+
+Résoudre un problème se ramenant à la résolution d’un système d’équations
+Résoudre un problème mobilisant la notation scientifique
+
+
+--- CONNAITRE ---
+Établir les liens entre des angles interceptant le même arc de cercle
+Reconnaitre des triangles isométriques et justifier à l’aide du cas d’isométrie adéquat
+Reconnaitre et justifier une configuration de Thalès ; en déduire des égalités de rapports
+Reconnaitre des triangles semblables et justifier à l’aide du cas de similitude adéquat
+Tirer une conclusion sur des figures géométriques à partir d’une égalité de rapports
+
+Démontrer le théorème de Pythagore et sa réciproque
+Distinguer réciproque et contraposée du théorème de Pythagore
+Transposer les propriétés du triangle rectangle dans des situations non prototypiques
+Reconnaitre les conditions d’application des propriétés du triangle rectangle
+Établir une propriété métrique dans un triangle rectangle
+Établir les nombres trigonométriques dans des triangles rectangles particuliers (30°, 45° et 60°)
+
+Distinguer graphiquement fonction et relation
+Verbaliser la dépendance entre les variables, à partir d’un graphique contextualisé
+Tracer le graphique d’une fonction et d’une relation non fonctionnelle
+
+Associer tableau de nombres – graphique – expression analytique
+Identifier les paramètres m et p dans un tableau de nombres, sur un graphique ou à partir d’une expression analytique
+
+Justifier les différentes étapes d’une résolution d’équation ou d’inéquation
+Ecrire l’égalité traduisant la division d’un polynôme par un autre
+Reconnaitre qu’un polynôme est divisible par (x-a) sans effectuer la division
+
+
+==============================
+RESSOURCES
+==============================
+
+Angle inscrit, angle au centre dans un cercle
+Figures isométriques
+Cas d’isométrie des triangles
+Théorème de Thalès (sans démonstration) et sa réciproque
+Configurations de Thalès
+Figures semblables
+Cas de similitude des triangles (y compris le cas des triangles à côtés parallèles)
+Outils logiques (utilisation en contexte)
+Implication (condition nécessaire, suffisante)
+Équivalence
+Réciproque
+
+Théorème de Pythagore et sa réciproque
+Médiane relative à l’hypoténuse
+Inscriptibilité d’un triangle rectangle dans un demi-cercle
+Propriétés métriques dans un triangle rectangle
+Nombres irrationnels
+Trigonométrie
+Définition du sinus, cosinus et tangente d’un angle dans le triangle rectangle
+Nombres trigonométriques de 30°, 45° et 60°
+Angle correspondant à une pente, à une inclinaison exprimée en %
+Outils logiques (utilisation en contexte)
+Réciproque
+Implication
+Équivalence
+Négation
+Contraposition
+
+Relation, fonction
+Graphique d’une fonction
+Variable dépendante, variable indépendante
+Parties de ℝ
+Éléments caractéristiques d’une fonction exclusivement à partir de son graphique
+Domaine et ensemble-image
+Image d'un réel
+Zéro(s)
+Signe
+Outil logique (utilisation en contexte)
+Quantificateur
+Vocabulaire ensembliste (utilisation en contexte)
+Union
+Intersection
+Différence
+
+Fonction du premier degré
+Fonction constante
+Représentation graphique de la fonction du premier degré et de la fonction constante
+Rôle des paramètres m et p
+Caractéristiques de la fonction du premier degré et de la fonction constante
+Zéro
+Signe
+Croissance-Décroissance
+Inéquation du premier degré
+Intersection de deux fonctions du premier degré et/ou constantes
+Outils logiques (utilisation en contexte)
+Connecteurs (et, ou)
+Équivalence
+
+Principes d’équivalence des inégalités
+Équations impossible et indéterminée
+Règle du produit nul
+Équation produit
+Système d’équations linéaires
+Puissances à exposant entier
+Racines (carrée – cubique)
+Polynômes à une variable
+degré
+coefficients
+opérations
+Loi du reste
+Factorisation
+Fractions rationnelles
+
+
+==============================
+STRATÉGIES TRANSVERSALES
+==============================
+
+Dégager les éléments essentiels d’un énoncé ou d’une figure
+Rédiger, argumenter, structurer, démontrer
+Situer les apports mathématiques dans l’histoire et dans les différentes cultures
+Communiquer en respectant la syntaxe de la logique mathématique
+Utiliser la calculatrice
+Tester une conjecture à l’aide de l’outil informatique
+
+S’adapter à des notations variées et à des situations non prototypiques
+Prendre conscience de la diversité des outils et en choisir un de manière raisonnée
+
+Exploiter un graphique
+Utiliser les opérateurs ensemblistes
+
+Modéliser et résoudre des problèmes
+Reconnaitre le modèle affin
+Articuler les différents registres de représentation sémiotique d’une fonction
+
+Acquérir les techniques algébriques pour traiter diverses situations
+Communiquer en respectant la syntaxe de la logique mathématique

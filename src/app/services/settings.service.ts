@@ -2,7 +2,9 @@ import { Injectable } from '@angular/core';
 import { Observable, defer, from, switchMap, throwError } from 'rxjs';
 import { apiFetch } from '../helpers/api-session';
 import { DysType } from '../models/DysType';
+import { ProgramNetwork, SectionProgram } from '../models/Program';
 import { School } from '../models/School';
+import { Section } from '../models/Section';
 import { Teacher } from '../models/Teacher';
 import { ApiResponse } from '../models/response';
 import { StudentOption } from '../models/StudentOption';
@@ -28,6 +30,66 @@ type WeeklySchedulePayload = {
   providedIn: 'root'
 })
 export class SettingsService {
+  getSections$(): Observable<Section[]> {
+    return defer(() => from(apiFetch('/sections', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les sections.'));
+            }
+
+            return from([(payload.data ?? []) as Section[]]);
+          })
+        )
+      )
+    );
+  }
+
+  getProgramNetworksBySectionId$(sectionId: string): Observable<ProgramNetwork[]> {
+    return defer(() =>
+      from(
+        apiFetch(`/program-networks?sectionId=${encodeURIComponent(sectionId)}`, {
+          method: 'GET'
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les réseaux.'));
+            }
+
+            return from([(payload.data ?? []) as ProgramNetwork[]]);
+          })
+        )
+      )
+    );
+  }
+
+  getProgramBySectionId$(sectionId: string, networkId: string): Observable<SectionProgram> {
+    return defer(() =>
+      from(
+        apiFetch(`/program?sectionId=${encodeURIComponent(sectionId)}&networkId=${encodeURIComponent(networkId)}`, {
+          method: 'GET'
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer le programme.'));
+            }
+
+            return from([payload.data as SectionProgram]);
+          })
+        )
+      )
+    );
+  }
+
   getTeachers$(): Observable<Teacher[]> {
     return defer(() => from(apiFetch('/teachers', { method: 'GET' }))).pipe(
       switchMap((response) =>
