@@ -7,39 +7,46 @@ create table if not exists public.class_journal_entries (
   title text not null,
   starts_at time not null,
   ends_at time not null,
-  section_id uuid references public.sections(id) on delete set null,
-  network_id uuid references public.networks(id) on delete set null,
-  notes text not null default '',
   teacher_is_absent boolean not null default false,
   teacher_absence_has_cm boolean not null default false,
-  status text not null default 'draft' check (status in ('draft', 'done')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (owner_id, entry_date, slot_key),
   check (starts_at < ends_at)
 );
 
-create table if not exists public.class_journal_entry_skills (
-  entry_id uuid not null references public.class_journal_entries(id) on delete cascade,
+create table if not exists public.class_session_students (
+  session_id uuid not null references public.class_journal_entries(id) on delete cascade,
+  student_enrollment_id uuid not null references public.student_enrollments(id) on delete cascade,
+  section_id uuid references public.sections(id) on delete set null,
+  network_id uuid references public.networks(id) on delete set null,
+  status text not null default 'present'
+    check (status in ('present', 'absent', 'excused', 'late')),
+  comment text,
+  created_at timestamptz not null default now(),
+  primary key (session_id, student_enrollment_id)
+);
+
+create table if not exists public.class_session_student_skills (
+  session_id uuid not null,
+  student_enrollment_id uuid not null,
   skill_id uuid not null references public.skills(id) on delete cascade,
   created_at timestamptz not null default now(),
-  primary key (entry_id, skill_id)
+  primary key (session_id, student_enrollment_id, skill_id),
+  foreign key (session_id, student_enrollment_id)
+    references public.class_session_students(session_id, student_enrollment_id)
+    on delete cascade
 );
 
-create table if not exists public.class_journal_entry_resources (
-  entry_id uuid not null references public.class_journal_entries(id) on delete cascade,
+create table if not exists public.class_session_student_resources (
+  session_id uuid not null,
+  student_enrollment_id uuid not null,
   resource_id uuid not null references public.resources(id) on delete cascade,
   created_at timestamptz not null default now(),
-  primary key (entry_id, resource_id)
-);
-
-create table if not exists public.class_journal_entry_students (
-  entry_id uuid not null references public.class_journal_entries(id) on delete cascade,
-  student_enrollment_id uuid not null references public.student_enrollments(id) on delete cascade,
-  attendance_status text not null check (attendance_status in ('present', 'absent', 'late', 'excused')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  primary key (entry_id, student_enrollment_id)
+  primary key (session_id, student_enrollment_id, resource_id),
+  foreign key (session_id, student_enrollment_id)
+    references public.class_session_students(session_id, student_enrollment_id)
+    on delete cascade
 );
 
 alter table public.class_journal_entries
@@ -71,5 +78,5 @@ on public.class_journal_entries(owner_id, entry_date);
 create index if not exists idx_class_journal_entries_slot
 on public.class_journal_entries(weekly_schedule_slot_id);
 
-create index if not exists idx_class_journal_entry_students_enrollment
-on public.class_journal_entry_students(student_enrollment_id);
+create index if not exists idx_class_session_students_enrollment
+on public.class_session_students(student_enrollment_id);

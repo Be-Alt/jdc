@@ -17,56 +17,127 @@ function getStringArray(value) {
         .filter((item) => Boolean(item))
         .filter((item, index, collection) => collection.indexOf(item) === index);
 }
-async function loadEntriesByDate(sql, ownerId, entryDate) {
+function isMissingRelationError(error, relationName) {
+    if (!error || typeof error !== 'object') {
+        return false;
+    }
+    const databaseError = error;
+    return databaseError.code === '42P01' && databaseError.message?.includes(relationName) === true;
+}
+async function loadEntriesByDateFromClassSessions(sql, ownerId, entryDate) {
+    const rows = await sql `
+    select
+      cs.id::text as id,
+      cs.session_date::text as session_date,
+      cs.weekly_schedule_slot_id::text as weekly_schedule_slot_id,
+      cs.slot_key,
+      cs.title,
+      to_char(cs.starts_at, 'HH24:MI') as starts_at,
+      to_char(cs.ends_at, 'HH24:MI') as ends_at,
+      cs.teacher_is_absent,
+      cs.teacher_absence_has_cm,
+      coalesce(students.students, '[]'::json) as students,
+      cs.updated_at::text as updated_at
+    from public.class_sessions cs
+    left join lateral (
+      select
+        json_agg(
+          json_build_object(
+            'student_enrollment_id', css.student_enrollment_id::text,
+            'section_id', css.section_id::text,
+            'network_id', css.network_id::text,
+            'attendance_status', css.status,
+            'comment', coalesce(css.comment, ''),
+            'selected_skill_ids', coalesce(skills.selected_skill_ids, '{}'::text[]),
+            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[])
+          )
+          order by css.student_enrollment_id::text
+        ) as students
+      from public.class_session_students css
+      left join lateral (
+        select
+          array_agg(csss.skill_id::text order by csss.skill_id::text) as selected_skill_ids
+        from public.class_session_student_skills csss
+        where csss.session_id = css.session_id
+          and csss.student_enrollment_id = css.student_enrollment_id
+      ) skills on true
+      left join lateral (
+        select
+          array_agg(cssr.resource_id::text order by cssr.resource_id::text) as selected_resource_ids
+        from public.class_session_student_resources cssr
+        where cssr.session_id = css.session_id
+          and cssr.student_enrollment_id = css.student_enrollment_id
+      ) resources on true
+      where css.session_id = cs.id
+    ) students on true
+    where cs.owner_id = ${ownerId}::uuid
+      and cs.session_date = ${entryDate}::date
+    order by cs.starts_at asc, cs.title asc
+  `;
+    return rows;
+}
+async function loadEntriesByDateFromLegacyEntries(sql, ownerId, entryDate) {
     const rows = await sql `
     select
       cje.id::text as id,
-      cje.entry_date::text as entry_date,
+      cje.entry_date::text as session_date,
       cje.weekly_schedule_slot_id::text as weekly_schedule_slot_id,
       cje.slot_key,
       cje.title,
       to_char(cje.starts_at, 'HH24:MI') as starts_at,
       to_char(cje.ends_at, 'HH24:MI') as ends_at,
-      cje.section_id::text as section_id,
-      cje.network_id::text as network_id,
-      cje.notes,
       cje.teacher_is_absent,
       cje.teacher_absence_has_cm,
-      cje.status,
-      coalesce(skills.selected_skill_ids, '{}'::text[]) as selected_skill_ids,
-      coalesce(resources.selected_resource_ids, '{}'::text[]) as selected_resource_ids,
-      coalesce(students.student_statuses, '[]'::json) as student_statuses,
+      coalesce(students.students, '[]'::json) as students,
       cje.updated_at::text as updated_at
     from public.class_journal_entries cje
     left join lateral (
       select
-        array_agg(cjes.skill_id::text order by cjes.skill_id::text) as selected_skill_ids
-      from public.class_journal_entry_skills cjes
-      where cjes.entry_id = cje.id
-    ) skills on true
-    left join lateral (
-      select
-        array_agg(cjer.resource_id::text order by cjer.resource_id::text) as selected_resource_ids
-      from public.class_journal_entry_resources cjer
-      where cjer.entry_id = cje.id
-    ) resources on true
-    left join lateral (
-      select
         json_agg(
           json_build_object(
-            'student_enrollment_id', cjes2.student_enrollment_id::text,
-            'attendance_status', cjes2.attendance_status
+            'student_enrollment_id', css.student_enrollment_id::text,
+            'section_id', css.section_id::text,
+            'network_id', css.network_id::text,
+            'attendance_status', css.status,
+            'comment', coalesce(css.comment, ''),
+            'selected_skill_ids', coalesce(skills.selected_skill_ids, '{}'::text[]),
+            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[])
           )
-          order by cjes2.student_enrollment_id::text
-        ) as student_statuses
-      from public.class_journal_entry_students cjes2
-      where cjes2.entry_id = cje.id
+          order by css.student_enrollment_id::text
+        ) as students
+      from public.class_session_students css
+      left join lateral (
+        select
+          array_agg(csss.skill_id::text order by csss.skill_id::text) as selected_skill_ids
+        from public.class_session_student_skills csss
+        where csss.session_id = css.session_id
+          and csss.student_enrollment_id = css.student_enrollment_id
+      ) skills on true
+      left join lateral (
+        select
+          array_agg(cssr.resource_id::text order by cssr.resource_id::text) as selected_resource_ids
+        from public.class_session_student_resources cssr
+        where cssr.session_id = css.session_id
+          and cssr.student_enrollment_id = css.student_enrollment_id
+      ) resources on true
+      where css.session_id = cje.id
     ) students on true
     where cje.owner_id = ${ownerId}::uuid
       and cje.entry_date = ${entryDate}::date
     order by cje.starts_at asc, cje.title asc
   `;
     return rows;
+}
+async function loadEntriesByDate(sql, ownerId, entryDate) {
+    try {
+        return await loadEntriesByDateFromClassSessions(sql, ownerId, entryDate);
+    }
+    catch (error) {
+        if (!isMissingRelationError(error, 'class_sessions')) {
+            throw error;
+        }
+        return loadEntriesByDateFromLegacyEntries(sql, ownerId, entryDate);
+    }
 }
 async function assertSlotBelongsToOwner(sql, ownerId, weeklyScheduleSlotId) {
     const rows = await sql `
@@ -79,6 +150,89 @@ async function assertSlotBelongsToOwner(sql, ownerId, weeklyScheduleSlotId) {
     limit 1
   `;
     return rows.length > 0;
+}
+async function upsertSessionIntoClassSessions(sql, input) {
+    const upsertedSessions = await sql `
+    insert into public.class_sessions (
+      owner_id,
+      session_date,
+      weekly_schedule_slot_id,
+      slot_key,
+      title,
+      starts_at,
+      ends_at,
+      teacher_is_absent,
+      teacher_absence_has_cm
+    )
+    values (
+      ${input.ownerId}::uuid,
+      ${input.date}::date,
+      ${input.weeklyScheduleSlotId}::uuid,
+      ${input.slotKey},
+      ${input.title},
+      ${input.startsAt}::time,
+      ${input.endsAt}::time,
+      ${input.teacherIsAbsent},
+      ${input.teacherAbsenceHasCm}
+    )
+    on conflict (owner_id, session_date, slot_key)
+    do update set
+      weekly_schedule_slot_id = excluded.weekly_schedule_slot_id,
+      title = excluded.title,
+      starts_at = excluded.starts_at,
+      ends_at = excluded.ends_at,
+      teacher_is_absent = excluded.teacher_is_absent,
+      teacher_absence_has_cm = excluded.teacher_absence_has_cm
+    returning id::text as id
+  `;
+    return upsertedSessions[0]?.id ?? '';
+}
+async function upsertSessionIntoLegacyEntries(sql, input) {
+    const upsertedEntries = await sql `
+    insert into public.class_journal_entries (
+      owner_id,
+      entry_date,
+      weekly_schedule_slot_id,
+      slot_key,
+      title,
+      starts_at,
+      ends_at,
+      teacher_is_absent,
+      teacher_absence_has_cm
+    )
+    values (
+      ${input.ownerId}::uuid,
+      ${input.date}::date,
+      ${input.weeklyScheduleSlotId}::uuid,
+      ${input.slotKey},
+      ${input.title},
+      ${input.startsAt}::time,
+      ${input.endsAt}::time,
+      ${input.teacherIsAbsent},
+      ${input.teacherAbsenceHasCm}
+    )
+    on conflict (owner_id, entry_date, slot_key)
+    do update set
+      weekly_schedule_slot_id = excluded.weekly_schedule_slot_id,
+      title = excluded.title,
+      starts_at = excluded.starts_at,
+      ends_at = excluded.ends_at,
+      teacher_is_absent = excluded.teacher_is_absent,
+      teacher_absence_has_cm = excluded.teacher_absence_has_cm
+    returning id::text as id
+  `;
+    return upsertedEntries[0]?.id ?? '';
+}
+async function upsertSession(sql, input) {
+    try {
+        return await upsertSessionIntoClassSessions(sql, input);
+    }
+    catch (error) {
+        if (!isMissingRelationError(error, 'class_sessions')) {
+            throw error;
+        }
+        return upsertSessionIntoLegacyEntries(sql, input);
+    }
 }
 export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, auth }) => {
     const sql = neon(getEnv('DATABASE_URL'));
@@ -106,23 +260,22 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         const startsAt = input.startsAt?.trim();
         const endsAt = input.endsAt?.trim();
         const weeklyScheduleSlotId = input.weeklyScheduleSlotId?.trim() || null;
-        const sectionId = input.sectionId?.trim() || null;
-        const networkId = input.networkId?.trim() || null;
-        const notes = input.notes ?? '';
         const teacherIsAbsent = input.teacherIsAbsent === true;
         const teacherAbsenceHasCm = teacherIsAbsent && input.teacherAbsenceHasCm === true;
-        const status = input.status === 'done' ? 'done' : 'draft';
-        const selectedSkillIds = getStringArray(input.selectedSkillIds);
-        const selectedResourceIds = getStringArray(input.selectedResourceIds);
-        const studentStatuses = Array.isArray(input.studentStatuses)
-            ? input.studentStatuses
+        const studentEntries = Array.isArray(input.studentEntries)
+            ? input.studentEntries
                 .map((item) => ({
                 studentEnrollmentId: item.studentEnrollmentId?.trim() || '',
+                sectionId: item.sectionId?.trim() || null,
+                networkId: item.networkId?.trim() || null,
                 attendanceStatus: item.attendanceStatus === 'absent' ||
                     item.attendanceStatus === 'late' ||
                     item.attendanceStatus === 'excused'
                     ? item.attendanceStatus
-                    : 'present'
+                    : 'present',
+                comment: item.comment?.trim() || '',
+                selectedSkillIds: getStringArray(item.selectedSkillIds),
+                selectedResourceIds: getStringArray(item.selectedResourceIds)
             }))
                 .filter((item) => Boolean(item.studentEnrollmentId))
             : [];
@@ -140,107 +293,73 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             });
             return;
         }
-        const upsertedEntries = await sql `
-      insert into public.class_journal_entries (
-        owner_id,
-        entry_date,
-        weekly_schedule_slot_id,
-        slot_key,
-        title,
-        starts_at,
-        ends_at,
-        section_id,
-        network_id,
-        notes,
-        teacher_is_absent,
-        teacher_absence_has_cm,
-        status
-      )
-      values (
-        ${auth.userId}::uuid,
-        ${date}::date,
-        ${weeklyScheduleSlotId}::uuid,
-        ${slotKey},
-        ${title},
-        ${startsAt}::time,
-        ${endsAt}::time,
-        ${sectionId}::uuid,
-        ${networkId}::uuid,
-        ${notes},
-        ${teacherIsAbsent},
-        ${teacherAbsenceHasCm},
-        ${status}
-      )
-      on conflict (owner_id, entry_date, slot_key)
-      do update set
-        weekly_schedule_slot_id = excluded.weekly_schedule_slot_id,
-        title = excluded.title,
-        starts_at = excluded.starts_at,
-        ends_at = excluded.ends_at,
-        section_id = excluded.section_id,
-        network_id = excluded.network_id,
-        notes = excluded.notes,
-        teacher_is_absent = excluded.teacher_is_absent,
-        teacher_absence_has_cm = excluded.teacher_absence_has_cm,
-        status = excluded.status
-      returning id::text as id
-    `;
-        const [entry] = upsertedEntries;
-        await sql `
-      delete from public.class_journal_entry_skills
-      where entry_id = ${entry.id}::uuid
-    `;
-        for (const skillId of selectedSkillIds) {
-            await sql `
-        insert into public.class_journal_entry_skills (entry_id, skill_id)
-        select ${entry.id}::uuid, s.id
-        from public.skills s
-        where s.id = ${skillId}::uuid
-        on conflict do nothing
-      `;
+        const sessionId = await upsertSession(sql, {
+            ownerId: auth.userId,
+            date,
+            weeklyScheduleSlotId,
+            slotKey,
+            title,
+            startsAt,
+            endsAt,
+            teacherIsAbsent,
+            teacherAbsenceHasCm
+        });
+        if (!sessionId) {
+            throw new Error('Unable to create the class journal session.');
         }
         await sql `
-      delete from public.class_journal_entry_resources
-      where entry_id = ${entry.id}::uuid
+      delete from public.class_session_students
+      where session_id = ${sessionId}::uuid
     `;
-        for (const resourceId of selectedResourceIds) {
-            await sql `
-        insert into public.class_journal_entry_resources (entry_id, resource_id)
-        select ${entry.id}::uuid, r.id
-        from public.resources r
-        where r.id = ${resourceId}::uuid
-        on conflict do nothing
-      `;
-        }
-        await sql `
-      delete from public.class_journal_entry_students
-      where entry_id = ${entry.id}::uuid
-    `;
-        for (const studentStatus of studentStatuses) {
-            await sql `
-        insert into public.class_journal_entry_students (
-          entry_id,
+        for (const studentEntry of studentEntries) {
+            const insertedStudents = await sql `
+        insert into public.class_session_students (
+          session_id,
           student_enrollment_id,
-          attendance_status
+          section_id,
+          network_id,
+          status,
+          comment
         )
         select
-          ${entry.id}::uuid,
+          ${sessionId}::uuid,
           se.id,
-          ${studentStatus.attendanceStatus}
+          ${studentEntry.sectionId}::uuid,
+          ${studentEntry.networkId}::uuid,
+          ${studentEntry.attendanceStatus},
+          ${studentEntry.comment}
         from public.student_enrollments se
-        where se.id = ${studentStatus.studentEnrollmentId}::uuid
+        where se.id = ${studentEntry.studentEnrollmentId}::uuid
           and se.owner_id = ${auth.userId}::uuid
-        on conflict (entry_id, student_enrollment_id)
-        do update set
-          attendance_status = excluded.attendance_status,
-          updated_at = now()
+        returning student_enrollment_id::text as student_enrollment_id
       `;
+            if (!insertedStudents.length) {
+                continue;
+            }
+            for (const skillId of studentEntry.selectedSkillIds) {
+                await sql `
+          insert into public.class_session_student_skills (session_id, student_enrollment_id, skill_id)
+          select ${sessionId}::uuid, ${studentEntry.studentEnrollmentId}::uuid, s.id
+          from public.skills s
+          where s.id = ${skillId}::uuid
+          on conflict do nothing
+        `;
+            }
+            for (const resourceId of studentEntry.selectedResourceIds) {
+                await sql `
+          insert into public.class_session_student_resources (session_id, student_enrollment_id, resource_id)
+          select ${sessionId}::uuid, ${studentEntry.studentEnrollmentId}::uuid, r.id
+          from public.resources r
+          where r.id = ${resourceId}::uuid
+          on conflict do nothing
+        `;
+            }
         }
         const entries = await loadEntriesByDate(sql, auth.userId, date);
-        const savedEntry = entries.find((item) => item.id === entry.id) ?? null;
+        const savedEntry = entries.find((item) => item.id === sessionId) ?? null;
         logger.info('class_journal.saved', {
             userId: auth.userId,
-            entryId: entry.id,
+            sessionId,
             date,
             slotKey
         });

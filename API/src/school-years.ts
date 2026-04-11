@@ -23,9 +23,9 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         sy.end_date::text as end_date,
         count(se.id)::int as student_count
       from public.school_years sy
-      inner join public.student_enrollments se
+      left join public.student_enrollments se
         on se.school_year_id = sy.id
-      where se.owner_id = ${auth.userId}::uuid
+        and se.owner_id = ${auth.userId}::uuid
       group by sy.id, sy.label, sy.start_date, sy.end_date
       order by
         sy.start_date desc nulls last,

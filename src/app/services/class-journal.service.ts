@@ -2,9 +2,11 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, defer, from, switchMap, throwError } from 'rxjs';
 import { apiFetch } from '../helpers/api-session';
 import {
+  AttendanceStatus,
   ClassJournalEntry,
   ClassJournalEntryPayload,
-  ClassJournalSlotDraft
+  ClassJournalSlotDraft,
+  ClassJournalStudentDraft
 } from '../models/ClassJournal';
 import { ApiResponse } from '../models/response';
 
@@ -69,17 +71,19 @@ export class ClassJournalService {
       (collection, entry) => ({
         ...collection,
         [entry.slot_key]: {
-          notes: entry.notes,
-          sectionId: entry.section_id ?? '',
-          networkId: entry.network_id ?? '',
-          selectedSkillIds: entry.selected_skill_ids,
-          selectedResourceIds: entry.selected_resource_ids,
           teacherIsAbsent: entry.teacher_is_absent,
           teacherAbsenceHasCm: entry.teacher_absence_has_cm,
-          studentStatuses: entry.student_statuses.reduce<Record<string, 'present' | 'absent' | 'late' | 'excused'>>(
-            (collection, studentStatus) => ({
-              ...collection,
-              [studentStatus.student_enrollment_id]: studentStatus.attendance_status
+          studentRecords: entry.students.reduce<Record<string, ClassJournalStudentDraft>>(
+            (studentCollection, student) => ({
+              ...studentCollection,
+              [student.student_enrollment_id]: {
+                sectionId: student.section_id ?? '',
+                networkId: student.network_id ?? '',
+                attendanceStatus: student.attendance_status,
+                comment: student.comment,
+                selectedSkillIds: student.selected_skill_ids,
+                selectedResourceIds: student.selected_resource_ids
+              }
             }),
             {}
           )
@@ -106,29 +110,21 @@ export class ClassJournalService {
 
   getDraft(slotKey: string): ClassJournalSlotDraft {
     return this.draftsSubject.value[slotKey] ?? {
-      notes: '',
-      sectionId: '',
-      networkId: '',
-      selectedSkillIds: [],
-      selectedResourceIds: [],
       teacherIsAbsent: false,
       teacherAbsenceHasCm: false,
-      studentStatuses: {}
+      studentRecords: {}
     };
   }
 
-  toggleSkill(slotKey: string, skillId: string): void {
-    const draft = this.getDraft(slotKey);
-    this.updateDraft(slotKey, {
-      selectedSkillIds: this.toggleId(draft.selectedSkillIds, skillId)
-    });
-  }
-
-  toggleResource(slotKey: string, resourceId: string): void {
-    const draft = this.getDraft(slotKey);
-    this.updateDraft(slotKey, {
-      selectedResourceIds: this.toggleId(draft.selectedResourceIds, resourceId)
-    });
+  getStudentDraft(slotKey: string, studentEnrollmentId: string): ClassJournalStudentDraft {
+    return this.getDraft(slotKey).studentRecords[studentEnrollmentId] ?? {
+      sectionId: '',
+      networkId: '',
+      attendanceStatus: 'present',
+      comment: '',
+      selectedSkillIds: [],
+      selectedResourceIds: []
+    };
   }
 
   setTeacherAbsence(slotKey: string, teacherIsAbsent: boolean): void {
@@ -147,17 +143,78 @@ export class ClassJournalService {
     });
   }
 
-  setStudentAttendanceStatus(
+  setStudentAttendanceStatus(slotKey: string, studentEnrollmentId: string, attendanceStatus: AttendanceStatus): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      attendanceStatus
+    });
+  }
+
+  setStudentComment(slotKey: string, studentEnrollmentId: string, comment: string): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      comment
+    });
+  }
+
+  toggleSkill(slotKey: string, studentEnrollmentId: string, skillId: string): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      selectedSkillIds: this.toggleId(studentDraft.selectedSkillIds, skillId)
+    });
+  }
+
+  toggleResource(slotKey: string, studentEnrollmentId: string, resourceId: string): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      selectedResourceIds: this.toggleId(studentDraft.selectedResourceIds, resourceId)
+    });
+  }
+
+  private updateStudentDraft(slotKey: string, studentEnrollmentId: string, studentDraft: ClassJournalStudentDraft): void {
+    const slotDraft = this.getDraft(slotKey);
+    this.updateDraft(slotKey, {
+      studentRecords: {
+        ...slotDraft.studentRecords,
+        [studentEnrollmentId]: studentDraft
+      }
+    });
+  }
+
+  setStudentSection(
     slotKey: string,
     studentEnrollmentId: string,
-    attendanceStatus: 'present' | 'absent' | 'late' | 'excused'
+    sectionId: string,
+    options?: { preserveSelections?: boolean }
   ): void {
-    const draft = this.getDraft(slotKey);
-    this.updateDraft(slotKey, {
-      studentStatuses: {
-        ...draft.studentStatuses,
-        [studentEnrollmentId]: attendanceStatus
-      }
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    const preserveSelections = options?.preserveSelections === true;
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      sectionId,
+      networkId: '',
+      selectedSkillIds: preserveSelections ? studentDraft.selectedSkillIds : [],
+      selectedResourceIds: preserveSelections ? studentDraft.selectedResourceIds : []
+    });
+  }
+
+  setStudentNetwork(
+    slotKey: string,
+    studentEnrollmentId: string,
+    networkId: string,
+    options?: { preserveSelections?: boolean }
+  ): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    const preserveSelections = options?.preserveSelections === true;
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      networkId,
+      selectedSkillIds: preserveSelections ? studentDraft.selectedSkillIds : [],
+      selectedResourceIds: preserveSelections ? studentDraft.selectedResourceIds : []
     });
   }
 

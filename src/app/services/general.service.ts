@@ -21,8 +21,10 @@ import { ApiResponse } from '../models/response';
 export class GeneralService {
   private readonly showArchivesSubject = new BehaviorSubject<boolean>(false);
   private readonly selectedSchoolYearIdSubject = new BehaviorSubject<string | null>(null);
+  private readonly refreshSchoolYearsSubject = new BehaviorSubject<void>(undefined);
 
-  private readonly schoolYearsRequest$ = defer(() => from(apiFetch('/school-years', { method: 'GET' }))).pipe(
+  private readonly schoolYearsRequest$ = this.refreshSchoolYearsSubject.pipe(
+    switchMap(() => defer(() => from(apiFetch('/school-years', { method: 'GET' })))),
     switchMap((response) =>
       from(response.json() as Promise<ApiResponse>).pipe(
         switchMap((payload) => {
@@ -36,8 +38,9 @@ export class GeneralService {
     ),
     tap((schoolYears) => {
       const currentSelection = this.selectedSchoolYearIdSubject.value;
+      const currentSelectionStillExists = schoolYears.some((schoolYear) => schoolYear.id === currentSelection);
 
-      if (currentSelection) {
+      if (currentSelection && currentSelectionStillExists) {
         return;
       }
 
@@ -82,6 +85,10 @@ export class GeneralService {
     this.selectedSchoolYearIdSubject.next(schoolYearId);
   }
 
+  refreshSchoolYears(): void {
+    this.refreshSchoolYearsSubject.next();
+  }
+
   setShowArchives(showArchives: boolean): void {
     this.showArchivesSubject.next(showArchives);
   }
@@ -102,9 +109,9 @@ export class GeneralService {
   }
 
   private resolveDefaultSchoolYear(schoolYears: SchoolYear[]): SchoolYear | null {
-    const currentSchoolYearLabel = this.getCurrentSchoolYearLabel();
+    const currentSchoolYearLabel = this.normalizeSchoolYearLabel(this.getCurrentSchoolYearLabel());
     const currentSchoolYear = schoolYears.find(
-      (schoolYear) => schoolYear.label === currentSchoolYearLabel
+      (schoolYear) => this.normalizeSchoolYearLabel(schoolYear.label) === currentSchoolYearLabel
     );
 
     return currentSchoolYear ?? schoolYears[0] ?? null;
@@ -112,10 +119,14 @@ export class GeneralService {
 
   private sortSchoolYears(schoolYears: SchoolYear[]): SchoolYear[] {
     return [...schoolYears].sort((left, right) => {
-      const leftDate = left.start_date ?? left.label;
-      const rightDate = right.start_date ?? right.label;
+      const leftDate = left.start_date ?? this.normalizeSchoolYearLabel(left.label);
+      const rightDate = right.start_date ?? this.normalizeSchoolYearLabel(right.label);
 
       return rightDate.localeCompare(leftDate);
     });
+  }
+
+  private normalizeSchoolYearLabel(label: string): string {
+    return label.replace(/\s+/g, '');
   }
 }

@@ -4,6 +4,7 @@ import { apiFetch } from '../helpers/api-session';
 import { DysType } from '../models/DysType';
 import { ProgramNetwork, SectionProgram } from '../models/Program';
 import { School } from '../models/School';
+import { SchoolHoliday } from '../models/SchoolHoliday';
 import { Section } from '../models/Section';
 import { Teacher } from '../models/Teacher';
 import { ApiResponse } from '../models/response';
@@ -30,6 +31,48 @@ type WeeklySchedulePayload = {
   providedIn: 'root'
 })
 export class SettingsService {
+  getSchoolHolidays$(): Observable<SchoolHoliday[]> {
+    return defer(() => from(apiFetch('/school-holidays', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les congés.'));
+            }
+
+            return from([(payload.data ?? []) as SchoolHoliday[]]);
+          })
+        )
+      )
+    );
+  }
+
+  saveSchoolHolidays$(holidays: Array<{ title: string; startsOn: string; endsOn: string }>): Observable<SchoolHoliday[]> {
+    return defer(() =>
+      from(
+        apiFetch('/school-holidays', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ holidays })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible d’enregistrer les congés.'));
+            }
+
+            return from([(payload.data ?? []) as SchoolHoliday[]]);
+          })
+        )
+      )
+    );
+  }
+
   getSections$(): Observable<Section[]> {
     return defer(() => from(apiFetch('/sections', { method: 'GET' }))).pipe(
       switchMap((response) =>

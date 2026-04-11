@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { SettingsDysComponent } from './settings-dys.component';
 import { SettingsProgramComponent } from './settings-program.component';
+import { SettingsSchoolHolidaysComponent } from './settings-school-holidays.component';
 import { SettingsSchoolsComponent } from './settings-schools.component';
 import { SettingsTeachersComponent } from './settings-teachers.component';
 import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.component';
@@ -12,7 +13,8 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
     SettingsDysComponent,
     SettingsSchoolsComponent,
     SettingsTeachersComponent,
-    SettingsProgramComponent
+    SettingsProgramComponent,
+    SettingsSchoolHolidaysComponent
   ],
   template: `
     <section class="space-y-6">
@@ -28,6 +30,7 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
       </div>
 
       <app-settings-weekly-schedule />
+      <app-settings-school-holidays />
       <app-settings-dys />
       <app-settings-schools />
       <app-settings-teachers />
