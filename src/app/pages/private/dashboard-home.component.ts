@@ -38,6 +38,45 @@ export class DashboardHomeComponent {
   private readonly settingsService = inject(SettingsService);
   private readonly showAllDaysSubject = new BehaviorSubject<boolean>(false);
 
+  protected readonly featureItems = [
+    {
+      title: 'Élèves',
+      description: 'Consulter les fiches, ajouter un élève et retrouver les informations par année scolaire.',
+      path: '/dashboard/students',
+      badge: 'Gestion'
+    },
+    {
+      title: 'Journal de classe',
+      description: 'Ouvrir l’agenda du professeur, gérer les séances et suivre les activités du jour.',
+      path: '/dashboard/class-journal',
+      badge: 'Agenda'
+    },
+    {
+      title: 'Présences',
+      description: 'Préparer le suivi des absences, retards et présences par cours ou par date.',
+      path: '/dashboard/attendance',
+      badge: 'Suivi'
+    },
+    {
+      title: 'Suivis',
+      description: 'Centraliser les remarques, observations et actions pédagogiques liées aux élèves.',
+      path: '/dashboard/follow-up',
+      badge: 'Actions'
+    },
+    {
+      title: 'Paramètres',
+      description: 'Configurer l’horaire, les congés, les écoles, les professeurs et les référentiels.',
+      path: '/dashboard/settings',
+      badge: 'Réglages'
+    },
+    {
+      title: 'Programmes',
+      description: 'Accéder à la configuration des programmes, UAA, compétences et ressources.',
+      path: '/dashboard/settings/program',
+      badge: 'Référentiel'
+    }
+  ];
+
   private readonly weekdays: Array<{ dayOfWeek: number; label: string }> = [
     { dayOfWeek: 1, label: 'Lundi' },
     { dayOfWeek: 2, label: 'Mardi' },

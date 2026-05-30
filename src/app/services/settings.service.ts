@@ -2,10 +2,11 @@ import { Injectable } from '@angular/core';
 import { Observable, defer, from, switchMap, throwError } from 'rxjs';
 import { apiFetch } from '../helpers/api-session';
 import { DysType } from '../models/DysType';
-import { ProgramNetwork, SectionProgram } from '../models/Program';
+import { ProgramCatalogItem, ProgramNetwork, SectionProgram } from '../models/Program';
 import { School } from '../models/School';
 import { SchoolHoliday } from '../models/SchoolHoliday';
 import { Section } from '../models/Section';
+import { Subject } from '../models/Subject';
 import { Teacher } from '../models/Teacher';
 import { ApiResponse } from '../models/response';
 import { StudentOption } from '../models/StudentOption';
@@ -73,8 +74,10 @@ export class SettingsService {
     );
   }
 
-  getSections$(): Observable<Section[]> {
-    return defer(() => from(apiFetch('/sections', { method: 'GET' }))).pipe(
+  getSections$(subjectId?: string | null): Observable<Section[]> {
+    const query = subjectId ? `?subjectId=${encodeURIComponent(subjectId)}` : '';
+
+    return defer(() => from(apiFetch(`/sections${query}`, { method: 'GET' }))).pipe(
       switchMap((response) =>
         from(response.json() as Promise<ApiResponse>).pipe(
           switchMap((payload) => {
@@ -89,10 +92,75 @@ export class SettingsService {
     );
   }
 
-  getProgramNetworksBySectionId$(sectionId: string): Observable<ProgramNetwork[]> {
+  createSection$(payload: {
+    code: string;
+    level: number;
+    type: string;
+    label: string;
+  }): Observable<Section> {
     return defer(() =>
       from(
-        apiFetch(`/program-networks?sectionId=${encodeURIComponent(sectionId)}`, {
+        apiFetch('/sections', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible d’ajouter la section.'));
+            }
+
+            return from([apiResponse.data as Section]);
+          })
+        )
+      )
+    );
+  }
+
+  deleteSection$(sectionId: string): Observable<{ sectionId: string }> {
+    return defer(() =>
+      from(
+        apiFetch('/sections', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sectionId })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible de supprimer la section.'));
+            }
+
+            return from([apiResponse.data as { sectionId: string }]);
+          })
+        )
+      )
+    );
+  }
+
+  getProgramNetworksBySectionId$(sectionId: string, subjectId?: string | null): Observable<ProgramNetwork[]> {
+    const params = new URLSearchParams({
+      sectionId
+    });
+
+    if (subjectId) {
+      params.set('subjectId', subjectId);
+    }
+
+    return defer(() =>
+      from(
+        apiFetch(`/program-networks?${params.toString()}`, {
           method: 'GET'
         })
       )
@@ -111,10 +179,136 @@ export class SettingsService {
     );
   }
 
-  getProgramBySectionId$(sectionId: string, networkId: string): Observable<SectionProgram> {
+  getNetworks$(): Observable<ProgramNetwork[]> {
+    return defer(() => from(apiFetch('/networks', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les réseaux.'));
+            }
+
+            return from([(payload.data ?? []) as ProgramNetwork[]]);
+          })
+        )
+      )
+    );
+  }
+
+  createNetwork$(payload: {
+    code: string;
+    name: string;
+    url?: string | null;
+  }): Observable<ProgramNetwork> {
     return defer(() =>
       from(
-        apiFetch(`/program?sectionId=${encodeURIComponent(sectionId)}&networkId=${encodeURIComponent(networkId)}`, {
+        apiFetch('/networks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible d’ajouter le réseau.'));
+            }
+
+            return from([apiResponse.data as ProgramNetwork]);
+          })
+        )
+      )
+    );
+  }
+
+  updateNetwork$(payload: {
+    networkId: string;
+    code: string;
+    name: string;
+    url?: string | null;
+  }): Observable<ProgramNetwork> {
+    return defer(() =>
+      from(
+        apiFetch('/networks', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible de modifier le réseau.'));
+            }
+
+            return from([apiResponse.data as ProgramNetwork]);
+          })
+        )
+      )
+    );
+  }
+
+  deleteNetwork$(networkId: string): Observable<{ networkId: string }> {
+    return defer(() =>
+      from(
+        apiFetch('/networks', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ networkId })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible de supprimer le réseau.'));
+            }
+
+            return from([apiResponse.data as { networkId: string }]);
+          })
+        )
+      )
+    );
+  }
+
+  getProgramBySectionId$(
+    sectionId: string,
+    networkId: string,
+    subjectId?: string | null,
+    programId?: string | null,
+    withoutProgram = false
+  ): Observable<SectionProgram> {
+    const params = new URLSearchParams({
+      sectionId,
+      networkId
+    });
+
+    if (subjectId) {
+      params.set('subjectId', subjectId);
+    }
+
+    if (programId) {
+      params.set('programId', programId);
+    }
+
+    if (withoutProgram) {
+      params.set('withoutProgram', 'true');
+    }
+
+    return defer(() =>
+      from(
+        apiFetch(`/program?${params.toString()}`, {
           method: 'GET'
         })
       )
@@ -127,6 +321,189 @@ export class SettingsService {
             }
 
             return from([payload.data as SectionProgram]);
+          })
+        )
+      )
+    );
+  }
+
+  createProgram$(payload: {
+    subjectId: string;
+    sectionId: string;
+    networkId: string;
+    hours: number;
+    name?: string | null;
+    validFrom?: string | null;
+    validTo?: string | null;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-program',
+      ...payload
+    });
+  }
+
+  updateProgram$(payload: {
+    programId: string;
+    hours: number;
+    name?: string | null;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'update-program',
+      ...payload
+    });
+  }
+
+  createProgramUaa$(payload: {
+    programId: string;
+    code: string;
+    name: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-uaa',
+      ...payload
+    });
+  }
+
+  createProgramResource$(payload: {
+    uaaId: string;
+    description: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-resource',
+      ...payload
+    });
+  }
+
+  createProgramCompetence$(payload: {
+    uaaId: string;
+    description: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-competence',
+      ...payload
+    });
+  }
+
+  createProgramStrategy$(payload: {
+    uaaId: string;
+    description: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-strategy',
+      ...payload
+    });
+  }
+
+  createProgramSkill$(payload: {
+    uaaId: string;
+    processTypeName: string;
+    description: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'create-skill',
+      ...payload
+    });
+  }
+
+  deleteProgramItem$(payload: {
+    itemId: string;
+    itemType: 'resource' | 'competence' | 'strategy' | 'skill';
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'delete-item',
+      ...payload
+    });
+  }
+
+  updateProgramItem$(payload: {
+    itemId: string;
+    itemType: 'resource' | 'competence' | 'strategy' | 'skill';
+    description: string;
+  }): Observable<{ id: string }> {
+    return this.mutateProgram$({
+      action: 'update-item',
+      ...payload
+    });
+  }
+
+  getProgramCatalog$(subjectId?: string | null, excludeProgramId?: string | null): Observable<ProgramCatalogItem[]> {
+    const params = new URLSearchParams();
+
+    if (subjectId) {
+      params.set('subjectId', subjectId);
+    }
+
+    if (excludeProgramId) {
+      params.set('excludeProgramId', excludeProgramId);
+    }
+
+    const query = params.toString();
+
+    return defer(() => from(apiFetch(`/program-catalog${query ? `?${query}` : ''}`, { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de lister les programmes.'));
+            }
+
+            return from([(payload.data ?? []) as ProgramCatalogItem[]]);
+          })
+        )
+      )
+    );
+  }
+
+  cloneProgramUaas$(targetProgramId: string, uaaIds: string[]): Observable<{ ids: string[] }> {
+    return defer(() =>
+      from(
+        apiFetch('/program', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'clone-uaas',
+            targetProgramId,
+            uaaIds
+          })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible de copier les UAA.'));
+            }
+
+            return from([apiResponse.data as { ids: string[] }]);
+          })
+        )
+      )
+    );
+  }
+
+  private mutateProgram$(payload: Record<string, unknown>): Observable<{ id: string }> {
+    return defer(() =>
+      from(
+        apiFetch('/program', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible d’enregistrer le programme.'));
+            }
+
+            return from([apiResponse.data as { id: string }]);
           })
         )
       )
@@ -149,12 +526,81 @@ export class SettingsService {
     );
   }
 
+  getSubjects$(): Observable<Subject[]> {
+    return defer(() => from(apiFetch('/subjects', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les matières.'));
+            }
+
+            return from([(payload.data ?? []) as Subject[]]);
+          })
+        )
+      )
+    );
+  }
+
+  createSubject$(payload: { name: string }): Observable<Subject> {
+    return defer(() =>
+      from(
+        apiFetch('/subjects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible d’ajouter la matière.'));
+            }
+
+            return from([apiResponse.data as Subject]);
+          })
+        )
+      )
+    );
+  }
+
+  deleteSubject$(subjectId: string): Observable<{ subjectId: string }> {
+    return defer(() =>
+      from(
+        apiFetch('/subjects', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ subjectId })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((apiResponse) => {
+            if (!response.ok) {
+              return throwError(() => new Error(apiResponse?.error || 'Impossible de supprimer la matière.'));
+            }
+
+            return from([apiResponse.data as { subjectId: string }]);
+          })
+        )
+      )
+    );
+  }
+
   createTeacher$(payload: {
     schoolId?: string | null;
     firstName: string;
     lastName: string;
     email?: string | null;
     phone?: string | null;
+    subjectId?: string | null;
     subject?: string | null;
   }): Observable<Teacher> {
     return defer(() =>
@@ -189,6 +635,7 @@ export class SettingsService {
     lastName: string;
     email?: string | null;
     phone?: string | null;
+    subjectId?: string | null;
     subject?: string | null;
   }): Observable<Teacher> {
     return defer(() =>

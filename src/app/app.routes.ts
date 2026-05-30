@@ -11,6 +11,7 @@ import { SettingsProgramPageComponent } from './pages/private/settings/settings-
 import { StudentDetailComponent } from './pages/private/students/student-detail.component';
 import { StudentFormComponent } from './pages/private/students/student-form.component';
 import { Students } from './pages/private/students/students';
+import { TeacherProfileComponent } from './pages/private/teacher-profile.component';
 
 export const routes: Routes = [
   {
@@ -55,6 +56,10 @@ export const routes: Routes = [
       {
         path: 'class-journal',
         component: ClassJournalComponent
+      },
+      {
+        path: 'teacher-profile',
+        component: TeacherProfileComponent
       },
       {
         path: 'attendance',

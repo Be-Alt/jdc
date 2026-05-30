@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { School } from '../../../models/School';
+import { Subject } from '../../../models/Subject';
 import { Teacher } from '../../../models/Teacher';
 import { SettingsService } from '../../../services/settings.service';
 
@@ -84,11 +85,15 @@ import { SettingsService } from '../../../services/settings.service';
 
               <label class="space-y-2">
                 <span class="text-sm font-medium text-slate-800">Matière</span>
-                <input
-                  type="text"
-                  formControlName="subject"
-                  class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
-                />
+                <select
+                  formControlName="subjectId"
+                  class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
+                >
+                  <option value="">Aucune matière</option>
+                  @for (subject of vm.subjects; track subject.id) {
+                    <option [value]="subject.id">{{ subject.name }}</option>
+                  }
+                </select>
               </label>
 
               <label class="space-y-2">
@@ -215,7 +220,7 @@ export class SettingsTeachersComponent {
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
     schoolId: [''],
-    subject: [''],
+    subjectId: [''],
     email: [''],
     phone: ['']
   });
@@ -227,17 +232,20 @@ export class SettingsTeachersComponent {
     switchMap(([, errorMessage]) =>
       combineLatest([
         this.settingsService.getTeachers$(),
-        this.settingsService.getSchools$()
+        this.settingsService.getSchools$(),
+        this.settingsService.getSubjects$()
       ]).pipe(
-        map(([teachers, schools]) => ({
+        map(([teachers, schools, subjects]) => ({
           teachers,
           schools,
+          subjects,
           isLoading: false,
           errorMessage
         })),
         startWith({
           teachers: [] as Teacher[],
           schools: [] as School[],
+          subjects: [] as Subject[],
           isLoading: true,
           errorMessage
         }),
@@ -245,6 +253,7 @@ export class SettingsTeachersComponent {
           of({
             teachers: [] as Teacher[],
             schools: [] as School[],
+            subjects: [] as Subject[],
             isLoading: false,
             errorMessage: error instanceof Error ? error.message : 'Impossible de charger les professeurs.'
           })
@@ -275,7 +284,7 @@ export class SettingsTeachersComponent {
           firstName: rawValue.firstName?.trim() || '',
           lastName: rawValue.lastName?.trim() || '',
           schoolId: rawValue.schoolId || null,
-          subject: rawValue.subject?.trim() || null,
+          subjectId: rawValue.subjectId || null,
           email: rawValue.email?.trim() || null,
           phone: rawValue.phone?.trim() || null
         })
@@ -283,7 +292,7 @@ export class SettingsTeachersComponent {
           firstName: rawValue.firstName?.trim() || '',
           lastName: rawValue.lastName?.trim() || '',
           schoolId: rawValue.schoolId || null,
-          subject: rawValue.subject?.trim() || null,
+          subjectId: rawValue.subjectId || null,
           email: rawValue.email?.trim() || null,
           phone: rawValue.phone?.trim() || null
         });
@@ -316,7 +325,7 @@ export class SettingsTeachersComponent {
       firstName: teacher.first_name || '',
       lastName: teacher.last_name || '',
       schoolId: teacher.school_id || '',
-      subject: teacher.subject || '',
+      subjectId: teacher.subject_id || '',
       email: teacher.email || '',
       phone: teacher.phone || ''
     });
@@ -358,7 +367,7 @@ export class SettingsTeachersComponent {
       firstName: '',
       lastName: '',
       schoolId: '',
-      subject: '',
+      subjectId: '',
       email: '',
       phone: ''
     });

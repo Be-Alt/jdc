@@ -23,6 +23,7 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
   try {
     const requestUrl = (req as { url?: string }).url;
     const sectionId = getQueryParam(requestUrl, 'sectionId');
+    const subjectId = getQueryParam(requestUrl, 'subjectId') ?? null;
 
     if (!sectionId) {
       res.status(400).json({
@@ -43,12 +44,14 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
       inner join public.networks net
         on net.id = p.network_id
       where p.section_id = ${sectionId}::uuid
+        and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
       order by net.code asc, net.name asc
     `;
 
     logger.info('program_networks.list_by_section', {
       userId: auth.userId,
       sectionId,
+      subjectId,
       count: Array.isArray(rows) ? rows.length : 0
     });
 

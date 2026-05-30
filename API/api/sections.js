@@ -2,19 +2,149 @@ import { neon } from '@neondatabase/serverless';
 import { withAuthenticatedEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) => {
+function getQueryParam(url, name) {
+    if (!url) {
+        return undefined;
+    }
+    const query = new URL(url, 'http://localhost').searchParams.get(name)?.trim();
+    return query || undefined;
+}
+export default withAuthenticatedEndpoint('GET,POST,DELETE,OPTIONS', async ({ req, res, auth }) => {
     try {
         const sql = neon(getEnv('DATABASE_URL'));
-        const rows = await sql `
-      select
-        id,
-        code,
-        level,
-        type,
-        label
-      from public.sections
-      order by level asc, type asc, code asc
-    `;
+        if (req.method === 'POST') {
+            const payload = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {});
+            const code = payload.code?.trim().toUpperCase();
+            const level = Number(payload.level);
+            const type = payload.type?.trim().toUpperCase();
+            const label = payload.label?.trim();
+            if (!code || !Number.isInteger(level) || level < 1 || !type || !label) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'Le code, le niveau, le type et le libellé sont obligatoires.'
+                });
+                return;
+            }
+            const insertedRows = await sql `
+        insert into public.sections (
+          code,
+          level,
+          type,
+          label
+        )
+        values (
+          ${code},
+          ${level},
+          ${type},
+          ${label}
+        )
+        returning
+          id::text as id,
+          code,
+          level,
+          type,
+          label
+      `;
+            const [section] = insertedRows;
+            logger.info('sections.created', {
+                userId: auth.userId,
+                sectionId: section.id
+            });
+            res.status(201).json({
+                ok: true,
+                data: section
+            });
+            return;
+        }
+        if (req.method === 'DELETE') {
+            const payload = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {});
+            const sectionId = payload.sectionId?.trim() || null;
+            if (!sectionId) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'sectionId est obligatoire pour supprimer une section.'
+                });
+                return;
+            }
+            const usageRows = await sql `
+        select
+          (
+            select count(*)::int
+            from public.student_enrollments
+            where section_id = ${sectionId}::uuid
+          ) as student_count,
+          (
+            select count(*)::int
+            from public.programs
+            where section_id = ${sectionId}::uuid
+          ) as program_count,
+          (
+            select count(*)::int
+            from public.class_session_students
+            where section_id = ${sectionId}::uuid
+          ) as journal_count
+      `;
+            const [usage] = usageRows;
+            const totalUsage = usage.student_count + usage.program_count + usage.journal_count;
+            if (totalUsage > 0) {
+                res.status(409).json({
+                    ok: false,
+                    error: 'Impossible de supprimer cette section : elle est encore liée à des élèves, des programmes ou des entrées du journal.',
+                    data: usage
+                });
+                return;
+            }
+            const deletedRows = await sql `
+        delete from public.sections
+        where id = ${sectionId}::uuid
+        returning id::text as id
+      `;
+            const [deletedSection] = deletedRows;
+            if (!deletedSection) {
+                res.status(404).json({
+                    ok: false,
+                    error: 'Section introuvable.'
+                });
+                return;
+            }
+            logger.info('sections.deleted', {
+                userId: auth.userId,
+                sectionId: deletedSection.id
+            });
+            res.status(200).json({
+                ok: true,
+                data: {
+                    sectionId: deletedSection.id
+                }
+            });
+            return;
+        }
+        const requestUrl = req.url;
+        const subjectId = getQueryParam(requestUrl, 'subjectId');
+        const rows = subjectId
+            ? await sql `
+          select distinct
+            sec.id::text as id,
+            sec.code,
+            sec.level,
+            sec.type,
+            sec.label
+          from public.sections sec
+          inner join public.programs p
+            on p.section_id = sec.id
+          where p.subject_id = ${subjectId}::uuid
+          order by sec.level asc, sec.type asc, sec.code asc
+        `
+            : await sql `
+          select
+            id::text as id,
+            code,
+            level,
+            type,
+            label
+          from public.sections
+          order by level asc, type asc, code asc
+        `;
         logger.info('sections.list', {
             userId: auth.userId,
             count: Array.isArray(rows) ? rows.length : 0
@@ -25,7 +155,14 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         });
     }
     catch (error) {
-        logger.error('sections.list_failed', error, {
+        if (error.code === '23505') {
+            res.status(409).json({
+                ok: false,
+                error: 'Une section avec ce code existe déjà.'
+            });
+            return;
+        }
+        logger.error('sections.request_failed', error, {
             userId: auth.userId
         });
         res.status(500).json({

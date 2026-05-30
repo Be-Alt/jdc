@@ -53,3 +53,18 @@ export type SectionProgram = {
   program: ProgramSummary | null;
   uaas: ProgramUaa[];
 };
+
+export type ProgramCatalogItem = {
+  id: string;
+  name: string | null;
+  hours: number;
+  subject_id: string;
+  subject_name: string;
+  section_id: string;
+  section_code: string;
+  section_label: string;
+  network_id: string;
+  network_code: string;
+  network_name: string;
+  uaa_count: number;
+};

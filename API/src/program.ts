@@ -95,6 +95,27 @@ type SectionProgram = {
   uaas: ProgramUaa[];
 };
 
+type ProgramMutationInput = {
+  action?: string;
+  subjectId?: string | null;
+  sectionId?: string | null;
+  networkId?: string | null;
+  programId?: string | null;
+  uaaId?: string | null;
+  processTypeId?: string | null;
+  processTypeName?: string | null;
+  name?: string | null;
+  code?: string | null;
+  description?: string | null;
+  itemId?: string | null;
+  itemType?: string | null;
+  hours?: number | string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  targetProgramId?: string | null;
+  uaaIds?: string[];
+};
+
 function getQueryParam(url: string | undefined, name: string): string | undefined {
   if (!url) {
     return undefined;
@@ -222,11 +243,503 @@ function transformProgramRows(rows: ProgramRow[]): SectionProgram {
   };
 }
 
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
+async function cloneUaa(sql: any, sourceUaaId: string, targetProgramId: string): Promise<string> {
+  const insertedUaaRows = await sql`
+    insert into public.uaa (
+      program_id,
+      code,
+      name
+    )
+    select
+      ${targetProgramId}::uuid,
+      code,
+      name
+    from public.uaa
+    where id = ${sourceUaaId}::uuid
+    returning id::text as id
+  `;
+
+  const [insertedUaa] = insertedUaaRows as Array<{ id: string }>;
+
+  if (!insertedUaa) {
+    throw new Error('UAA source introuvable.');
+  }
+
+  await sql`
+    insert into public.resources (
+      uaa_id,
+      description
+    )
+    select
+      ${insertedUaa.id}::uuid,
+      description
+    from public.resources
+    where uaa_id = ${sourceUaaId}::uuid
+  `;
+
+  await sql`
+    insert into public.uaa_competences (
+      uaa_id,
+      description
+    )
+    select
+      ${insertedUaa.id}::uuid,
+      description
+    from public.uaa_competences
+    where uaa_id = ${sourceUaaId}::uuid
+  `;
+
+  await sql`
+    insert into public.uaa_strategies (
+      uaa_id,
+      description
+    )
+    select
+      ${insertedUaa.id}::uuid,
+      description
+    from public.uaa_strategies
+    where uaa_id = ${sourceUaaId}::uuid
+  `;
+
+  await sql`
+    insert into public.skills (
+      uaa_id,
+      process_type_id,
+      description
+    )
+    select
+      ${insertedUaa.id}::uuid,
+      process_type_id,
+      description
+    from public.skills
+    where uaa_id = ${sourceUaaId}::uuid
+  `;
+
+  return insertedUaa.id;
+}
+
+export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, auth }) => {
   try {
+    const sql = neon(getEnv('DATABASE_URL'));
+
+    if (req.method === 'POST') {
+      const payload = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {}) as ProgramMutationInput;
+      const action = payload.action?.trim() || '';
+
+      if (action === 'create-program') {
+        const subjectId = payload.subjectId?.trim() || null;
+        const sectionId = payload.sectionId?.trim() || null;
+        const networkId = payload.networkId?.trim() || null;
+        const hours = Number(payload.hours);
+        const name = payload.name?.trim() || null;
+        const validFrom = payload.validFrom?.trim() || null;
+        const validTo = payload.validTo?.trim() || null;
+
+        if (!subjectId || !sectionId || !networkId || !Number.isInteger(hours) || hours < 1) {
+          res.status(400).json({
+            ok: false,
+            error: 'subjectId, sectionId, networkId et hours sont obligatoires pour créer un programme.'
+          });
+          return;
+        }
+
+        const insertedRows = await sql`
+          insert into public.programs (
+            subject_id,
+            section_id,
+            network_id,
+            hours,
+            name,
+            valid_from,
+            valid_to
+          )
+          values (
+            ${subjectId}::uuid,
+            ${sectionId}::uuid,
+            ${networkId}::uuid,
+            ${hours},
+            ${name},
+            ${validFrom}::date,
+            ${validTo}::date
+          )
+          returning id::text as id
+        `;
+
+        const [program] = insertedRows as Array<{ id: string }>;
+
+        logger.info('program.created', {
+          userId: auth.userId,
+          programId: program.id
+        });
+
+        res.status(201).json({
+          ok: true,
+          data: program
+        });
+        return;
+      }
+
+      if (action === 'update-program') {
+        const programId = payload.programId?.trim() || null;
+        const hours = Number(payload.hours);
+        const name = payload.name?.trim() || null;
+
+        if (!programId || !Number.isInteger(hours) || hours < 1) {
+          res.status(400).json({
+            ok: false,
+            error: 'programId et hours sont obligatoires pour modifier un programme.'
+          });
+          return;
+        }
+
+        const updatedRows = await sql`
+          update public.programs
+          set
+            name = ${name},
+            hours = ${hours}
+          where id = ${programId}::uuid
+          returning id::text as id
+        `;
+
+        const [program] = updatedRows as Array<{ id: string }>;
+
+        if (!program) {
+          res.status(404).json({
+            ok: false,
+            error: 'Programme introuvable.'
+          });
+          return;
+        }
+
+        logger.info('program.updated', {
+          userId: auth.userId,
+          programId: program.id
+        });
+
+        res.status(200).json({
+          ok: true,
+          data: program
+        });
+        return;
+      }
+
+      if (action === 'create-uaa') {
+        const programId = payload.programId?.trim() || null;
+        const code = payload.code?.trim() || null;
+        const name = payload.name?.trim() || null;
+
+        if (!programId || !code || !name) {
+          res.status(400).json({
+            ok: false,
+            error: 'programId, code et name sont obligatoires pour créer une UAA.'
+          });
+          return;
+        }
+
+        const insertedRows = await sql`
+          insert into public.uaa (
+            program_id,
+            code,
+            name
+          )
+          values (
+            ${programId}::uuid,
+            ${code},
+            ${name}
+          )
+          returning id::text as id
+        `;
+
+        const [uaa] = insertedRows as Array<{ id: string }>;
+
+        logger.info('program.uaa_created', {
+          userId: auth.userId,
+          programId,
+          uaaId: uaa.id
+        });
+
+        res.status(201).json({
+          ok: true,
+          data: uaa
+        });
+        return;
+      }
+
+      if (action === 'create-resource' || action === 'create-competence' || action === 'create-strategy') {
+        const uaaId = payload.uaaId?.trim() || null;
+        const description = payload.description?.trim() || null;
+
+        if (!uaaId || !description) {
+          res.status(400).json({
+            ok: false,
+            error: 'uaaId et description sont obligatoires.'
+          });
+          return;
+        }
+
+        const insertedRows =
+          action === 'create-resource'
+            ? await sql`
+                insert into public.resources (uaa_id, description)
+                values (${uaaId}::uuid, ${description})
+                returning id::text as id
+              `
+            : action === 'create-competence'
+              ? await sql`
+                  insert into public.uaa_competences (uaa_id, description)
+                  values (${uaaId}::uuid, ${description})
+                  returning id::text as id
+                `
+              : await sql`
+                  insert into public.uaa_strategies (uaa_id, description)
+                  values (${uaaId}::uuid, ${description})
+                  returning id::text as id
+                `;
+
+        const [item] = insertedRows as Array<{ id: string }>;
+
+        logger.info('program.item_created', {
+          userId: auth.userId,
+          action,
+          uaaId,
+          itemId: item.id
+        });
+
+        res.status(201).json({
+          ok: true,
+          data: item
+        });
+        return;
+      }
+
+      if (action === 'create-skill') {
+        const uaaId = payload.uaaId?.trim() || null;
+        const processTypeId = payload.processTypeId?.trim() || null;
+        const processTypeName = payload.processTypeName?.trim() || null;
+        const description = payload.description?.trim() || null;
+
+        if (!uaaId || !description || (!processTypeId && !processTypeName)) {
+          res.status(400).json({
+            ok: false,
+            error: 'uaaId, description et processus sont obligatoires pour créer une compétence.'
+          });
+          return;
+        }
+
+        const resolvedProcessTypeId = processTypeId || (await sql`
+          insert into public.process_types (name)
+          values (${processTypeName})
+          on conflict (name) do update
+          set name = excluded.name
+          returning id::text as id
+        ` as Array<{ id: string }>)[0]?.id;
+
+        const insertedRows = await sql`
+          insert into public.skills (
+            uaa_id,
+            process_type_id,
+            description
+          )
+          values (
+            ${uaaId}::uuid,
+            ${resolvedProcessTypeId}::uuid,
+            ${description}
+          )
+          returning id::text as id
+        `;
+
+        const [skill] = insertedRows as Array<{ id: string }>;
+
+        logger.info('program.skill_created', {
+          userId: auth.userId,
+          uaaId,
+          skillId: skill.id
+        });
+
+        res.status(201).json({
+          ok: true,
+          data: skill
+        });
+        return;
+      }
+
+      if (action === 'delete-item') {
+        const itemId = payload.itemId?.trim() || null;
+        const itemType = payload.itemType?.trim() || null;
+
+        if (!itemId || !itemType) {
+          res.status(400).json({
+            ok: false,
+            error: 'itemId et itemType sont obligatoires pour supprimer un élément.'
+          });
+          return;
+        }
+
+        const deletedRows =
+          itemType === 'resource'
+            ? await sql`
+                delete from public.resources
+                where id = ${itemId}::uuid
+                returning id::text as id
+              `
+            : itemType === 'competence'
+              ? await sql`
+                  delete from public.uaa_competences
+                  where id = ${itemId}::uuid
+                  returning id::text as id
+                `
+              : itemType === 'strategy'
+                ? await sql`
+                    delete from public.uaa_strategies
+                    where id = ${itemId}::uuid
+                    returning id::text as id
+                  `
+                : itemType === 'skill'
+                  ? await sql`
+                      delete from public.skills
+                      where id = ${itemId}::uuid
+                      returning id::text as id
+                    `
+                  : [];
+
+        const [item] = deletedRows as Array<{ id: string }>;
+
+        if (!item) {
+          res.status(404).json({
+            ok: false,
+            error: 'Élément introuvable.'
+          });
+          return;
+        }
+
+        logger.info('program.item_deleted', {
+          userId: auth.userId,
+          itemType,
+          itemId
+        });
+
+        res.status(200).json({
+          ok: true,
+          data: item
+        });
+        return;
+      }
+
+      if (action === 'update-item') {
+        const itemId = payload.itemId?.trim() || null;
+        const itemType = payload.itemType?.trim() || null;
+        const description = payload.description?.trim() || null;
+
+        if (!itemId || !itemType || !description) {
+          res.status(400).json({
+            ok: false,
+            error: 'itemId, itemType et description sont obligatoires pour modifier un élément.'
+          });
+          return;
+        }
+
+        const updatedRows =
+          itemType === 'resource'
+            ? await sql`
+                update public.resources
+                set description = ${description}
+                where id = ${itemId}::uuid
+                returning id::text as id
+              `
+            : itemType === 'competence'
+              ? await sql`
+                  update public.uaa_competences
+                  set description = ${description}
+                  where id = ${itemId}::uuid
+                  returning id::text as id
+                `
+              : itemType === 'strategy'
+                ? await sql`
+                    update public.uaa_strategies
+                    set description = ${description}
+                    where id = ${itemId}::uuid
+                    returning id::text as id
+                  `
+                : itemType === 'skill'
+                  ? await sql`
+                      update public.skills
+                      set description = ${description}
+                      where id = ${itemId}::uuid
+                      returning id::text as id
+                    `
+                  : [];
+
+        const [item] = updatedRows as Array<{ id: string }>;
+
+        if (!item) {
+          res.status(404).json({
+            ok: false,
+            error: 'Élément introuvable.'
+          });
+          return;
+        }
+
+        logger.info('program.item_updated', {
+          userId: auth.userId,
+          itemType,
+          itemId
+        });
+
+        res.status(200).json({
+          ok: true,
+          data: item
+        });
+        return;
+      }
+
+      if (action === 'clone-uaas') {
+        const targetProgramId = payload.targetProgramId?.trim() || null;
+        const uaaIds = Array.isArray(payload.uaaIds)
+          ? Array.from(new Set(payload.uaaIds.map((id) => id.trim()).filter(Boolean)))
+          : [];
+
+        if (!targetProgramId || uaaIds.length === 0) {
+          res.status(400).json({
+            ok: false,
+            error: 'targetProgramId et uaaIds sont obligatoires pour copier des UAA.'
+          });
+          return;
+        }
+
+        const clonedUaaIds: string[] = [];
+
+        for (const uaaId of uaaIds) {
+          clonedUaaIds.push(await cloneUaa(sql, uaaId, targetProgramId));
+        }
+
+        logger.info('program.uaas_cloned', {
+          userId: auth.userId,
+          targetProgramId,
+          count: clonedUaaIds.length
+        });
+
+        res.status(201).json({
+          ok: true,
+          data: {
+            ids: clonedUaaIds
+          }
+        });
+        return;
+      }
+
+      res.status(400).json({
+        ok: false,
+        error: 'Action programme inconnue.'
+      });
+      return;
+    }
+
     const requestUrl = (req as { url?: string }).url;
     const sectionId = getQueryParam(requestUrl, 'sectionId');
-    const networkId = getQueryParam(requestUrl, 'networkId');
+    const networkId = getQueryParam(requestUrl, 'networkId') ?? null;
+    const subjectId = getQueryParam(requestUrl, 'subjectId') ?? null;
+    const programId = getQueryParam(requestUrl, 'programId') ?? null;
+    const withoutProgram = getQueryParam(requestUrl, 'withoutProgram') === 'true';
 
     if (!sectionId) {
       res.status(400).json({
@@ -236,7 +749,6 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
       return;
     }
 
-    const sql = neon(getEnv('DATABASE_URL'));
     const rows = await sql`
       select
         sec.id as section_id,
@@ -271,7 +783,10 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
       from public.sections sec
       left join public.programs p
         on p.section_id = sec.id
+       and ${withoutProgram}::boolean = false
        and (${networkId}::uuid is null or p.network_id = ${networkId}::uuid)
+       and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
+       and (${programId}::uuid is null or p.id = ${programId}::uuid)
       left join public.uaa u
         on u.program_id = p.id
       left join public.subjects sub
@@ -317,6 +832,9 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
       userId: auth.userId,
       sectionId,
       networkId,
+      subjectId,
+      programId,
+      withoutProgram,
       uaaCount: program.uaas.length
     });
 
@@ -325,6 +843,14 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
       data: program
     });
   } catch (error) {
+    if ((error as { code?: string }).code === '23505') {
+      res.status(409).json({
+        ok: false,
+        error: 'Un programme existe déjà pour cette matière, cette section, ce réseau et ce volume horaire.'
+      });
+      return;
+    }
+
     logger.error('program.get_by_section_failed', error, {
       userId: auth.userId
     });

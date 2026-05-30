@@ -2,6 +2,7 @@ export type Teacher = {
   id: string;
   school_id: string | null;
   school_name: string | null;
+  subject_id: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;

@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import {
   apiFetch,
   clearApiSession,
@@ -7,26 +7,16 @@ import {
 } from '../../helpers/api-session';
 import { waitForAuthenticatedUser } from '../../helpers/auth-session';
 import { neonAuthClient } from '../../helpers/neon-auth.client';
-import { neonAuthConfig } from '../../helpers/neon-auth.config';
 import { syncProfileWithApi } from '../../helpers/profile-sync';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent {
   private readonly router = inject(Router);
 
-  protected readonly allowedDomainsLabel = neonAuthConfig.allowedEmailDomains.join(', ');
-  protected readonly navItems = [
-    { label: 'Vue d’ensemble', path: '/dashboard/overview', badge: '01', exact: true },
-    { label: 'Élèves', path: '/dashboard/students', badge: '02', exact: false },
-    { label: 'Journal', path: '/dashboard/class-journal', badge: '03', exact: false },
-    { label: 'Présences', path: '/dashboard/attendance', badge: '04', exact: false },
-    { label: 'Suivis', path: '/dashboard/follow-up', badge: '05', exact: false },
-    { label: 'Paramètres', path: '/dashboard/settings', badge: '06', exact: false }
-  ];
   protected isLoading = true;
   protected isSigningOut = false;
   protected errorMessage = '';
@@ -36,7 +26,10 @@ export class DashboardComponent {
   protected currentUserId = '';
   protected currentUserRole = 'unknown';
   protected endpointError = '';
-  protected isMobileNavOpen = false;
+  protected get isOverviewPage(): boolean {
+    const url = this.router.url.split('?')[0].split('#')[0];
+    return url === '/dashboard' || url === '/dashboard/overview';
+  }
 
   constructor() {
     void this.loadUser();
@@ -60,14 +53,6 @@ export class DashboardComponent {
       this.errorMessage =
         error instanceof Error ? error.message : 'La déconnexion a échoué.';
     }
-  }
-
-  protected toggleMobileNav(): void {
-    this.isMobileNavOpen = !this.isMobileNavOpen;
-  }
-
-  protected closeMobileNav(): void {
-    this.isMobileNavOpen = false;
   }
 
   private async loadUser(): Promise<void> {

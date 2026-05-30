@@ -7,6 +7,7 @@ type TeacherRow = {
   id: string;
   school_id: string | null;
   school_name: string | null;
+  subject_id: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -21,6 +22,7 @@ type TeacherInput = {
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
+  subjectId?: string | null;
   subject?: string | null;
 };
 
@@ -30,14 +32,17 @@ async function listTeachers(sql: any, userId: string) {
       t.id::text as id,
       t.school_id::text as school_id,
       s.name as school_name,
+      t.subject_id::text as subject_id,
       t.first_name,
       t.last_name,
       t.email,
       t.phone,
-      t.subject
+      coalesce(sub.name, t.subject) as subject
     from public.teachers t
     left join public.schools s
       on s.id = t.school_id
+    left join public.subjects sub
+      on sub.id = t.subject_id
     where t.owner_id = ${userId}::uuid
     order by t.last_name asc nulls last, t.first_name asc nulls last
   `;
@@ -66,7 +71,8 @@ export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({
     const lastName = payload.lastName?.trim() || null;
     const email = payload.email?.trim() || null;
     const phone = payload.phone?.trim() || null;
-    const subject = payload.subject?.trim() || null;
+    const subjectId = payload.subjectId?.trim() || null;
+    const legacySubject = payload.subject?.trim() || null;
 
     if (req.method === 'POST') {
       if (!firstName || !lastName) {
@@ -84,6 +90,7 @@ export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({
           last_name,
           email,
           phone,
+          subject_id,
           subject,
           owner_id,
           organization_id,
@@ -95,7 +102,8 @@ export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({
           ${lastName},
           ${email},
           ${phone},
-          ${subject},
+          ${subjectId}::uuid,
+          ${legacySubject},
           ${auth.userId}::uuid,
           null,
           false
@@ -136,7 +144,8 @@ export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({
           last_name = ${lastName},
           email = ${email},
           phone = ${phone},
-          subject = ${subject}
+          subject_id = ${subjectId}::uuid,
+          subject = ${legacySubject}
         where id = ${teacherId}::uuid
           and owner_id = ${auth.userId}::uuid
         returning id::text as id

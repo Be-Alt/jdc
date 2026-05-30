@@ -1,8 +1,11 @@
 import { Component } from '@angular/core';
 import { SettingsDysComponent } from './settings-dys.component';
+import { SettingsNetworksComponent } from './settings-networks.component';
 import { SettingsProgramComponent } from './settings-program.component';
 import { SettingsSchoolHolidaysComponent } from './settings-school-holidays.component';
 import { SettingsSchoolsComponent } from './settings-schools.component';
+import { SettingsSectionsComponent } from './settings-sections.component';
+import { SettingsSubjectsComponent } from './settings-subjects.component';
 import { SettingsTeachersComponent } from './settings-teachers.component';
 import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.component';
 
@@ -10,8 +13,11 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
   selector: 'app-settings',
   imports: [
     SettingsWeeklyScheduleComponent,
+    SettingsNetworksComponent,
     SettingsDysComponent,
     SettingsSchoolsComponent,
+    SettingsSectionsComponent,
+    SettingsSubjectsComponent,
     SettingsTeachersComponent,
     SettingsProgramComponent,
     SettingsSchoolHolidaysComponent
@@ -31,6 +37,9 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
 
       <app-settings-weekly-schedule />
       <app-settings-school-holidays />
+      <app-settings-networks />
+      <app-settings-sections />
+      <app-settings-subjects />
       <app-settings-dys />
       <app-settings-schools />
       <app-settings-teachers />
