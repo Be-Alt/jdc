@@ -10,6 +10,7 @@ type StudentUpsertPayload = {
   birthDate?: string | null;
   schoolYearId?: string;
   sectionId?: string | null;
+  programId?: string | null;
   schoolId?: string | null;
   status?: string;
   teacherIds?: string[];
@@ -27,6 +28,7 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
     const birthDate = payload.birthDate?.trim() || null;
     const schoolYearId = payload.schoolYearId?.trim();
     const sectionId = payload.sectionId?.trim() || null;
+    const requestedProgramId = payload.programId?.trim() || null;
     const schoolId = payload.schoolId?.trim() || null;
     const status = payload.status?.trim() || 'active';
     const teacherIds = schoolId && Array.isArray(payload.teacherIds)
@@ -62,6 +64,37 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
     }
 
     const sql = neon(getEnv('DATABASE_URL'));
+    let programId: string | null = null;
+
+    if (requestedProgramId) {
+      if (!sectionId) {
+        res.status(400).json({
+          ok: false,
+          error: 'Un programme ne peut être attribué que si une section est sélectionnée.'
+        });
+        return;
+      }
+
+      const matchingProgramRows = await sql`
+        select id::text as id
+        from public.programs
+        where id = ${requestedProgramId}::uuid
+          and section_id = ${sectionId}::uuid
+        limit 1
+      `;
+
+      const [matchingProgram] = matchingProgramRows as Array<{ id: string }>;
+
+      if (!matchingProgram) {
+        res.status(400).json({
+          ok: false,
+          error: 'Le programme sélectionné ne correspond pas à la section de l’élève.'
+        });
+        return;
+      }
+
+      programId = matchingProgram.id;
+    }
 
     if (enrollmentId) {
       const existingRows = await sql`
@@ -106,6 +139,7 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
         set
           school_year_id = ${schoolYearId}::uuid,
           section_id = ${sectionId}::uuid,
+          program_id = ${programId}::uuid,
           status = ${status}
         where id = ${enrollmentId}::uuid
           and owner_id = ${auth.userId}::uuid
@@ -260,6 +294,7 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
         person_id,
         school_year_id,
         section_id,
+        program_id,
         status,
         owner_id,
         organization_id,
@@ -269,6 +304,7 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
         ${person.id}::uuid,
         ${schoolYearId}::uuid,
         ${sectionId}::uuid,
+        ${programId}::uuid,
         ${status},
         ${auth.userId}::uuid,
         null,

@@ -18,6 +18,7 @@ import { School } from '../../../models/School';
 import { SchoolYear } from '../../../models/SchoolYear';
 import { Section } from '../../../models/Section';
 import { Student } from '../../../models/Student';
+import { ProgramCatalogItem } from '../../../models/Program';
 import { Teacher } from '../../../models/Teacher';
 import { GeneralService } from '../../../services/general.service';
 import { StudentsService } from '../../../services/students.service';
@@ -27,6 +28,7 @@ type StudentFormViewModel = {
   enrollmentId: string | null;
   schoolYears: SchoolYear[];
   sections: Section[];
+  programs: ProgramCatalogItem[];
   schools: School[];
   teachers: Teacher[];
   filteredTeachers: Teacher[];
@@ -171,6 +173,31 @@ type StudentFormViewModel = {
                         </option>
                       }
                     </select>
+                  </label>
+
+                  <label class="space-y-2 md:col-span-2">
+                    <span class="text-sm font-medium text-slate-800">Programme</span>
+                    <select
+                      formControlName="programId"
+                      class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
+                    >
+                      <option value="">Aucun programme attribué</option>
+                      @for (program of vm.programs; track program.id) {
+                        <option [value]="program.id">
+                          {{ program.name || program.subject_name }} · {{ program.subject_name }} ·
+                          {{ program.network_code }} · {{ program.hours }} h
+                        </option>
+                      }
+                    </select>
+                    @if (!form.controls.sectionId.value) {
+                      <span class="block text-xs text-slate-500">
+                        Sélectionne d’abord une section pour afficher les programmes compatibles.
+                      </span>
+                    } @else if (vm.programs.length === 0) {
+                      <span class="block text-xs text-slate-500">
+                        Aucun programme n’est disponible pour cette section.
+                      </span>
+                    }
                   </label>
                 </div>
               </section>
@@ -349,6 +376,7 @@ export class StudentFormComponent {
     birthDate: [''],
     schoolYearId: ['', Validators.required],
     sectionId: [''],
+    programId: [''],
     schoolId: [''],
     status: ['active', Validators.required],
     teacherIds: [[] as string[]],
@@ -359,9 +387,11 @@ export class StudentFormComponent {
   protected readonly vm$ = combineLatest([
     this.generalService.schoolYears$,
     this.studentsService.getSections$(),
+    this.studentsService.getPrograms$(),
     this.studentsService.getSchools$(),
     this.studentsService.getTeachers$(),
     this.studentsService.getDysTypes$(),
+    this.form.controls.sectionId.valueChanges.pipe(startWith(this.form.controls.sectionId.value)),
     this.form.controls.schoolId.valueChanges.pipe(startWith(this.form.controls.schoolId.value)),
     this.form.controls.dysIds.valueChanges.pipe(startWith(this.form.controls.dysIds.value)),
     this.loadErrorSubject.asObservable(),
@@ -382,7 +412,16 @@ export class StudentFormComponent {
           tap(() => this.patchDefaultSchoolYear())
         )
   ]).pipe(
-    tap(([, , , , dysTypes, , selectedDysIds]) => {
+    tap(([, , programs, , , dysTypes, selectedSectionId, , selectedDysIds]) => {
+      const selectedProgramId = this.form.controls.programId.value;
+      const isProgramCompatible = programs.some(
+        (program) => program.id === selectedProgramId && program.section_id === selectedSectionId
+      );
+
+      if (selectedProgramId && !isProgramCompatible) {
+        this.form.controls.programId.setValue('', { emitEvent: false });
+      }
+
       const allowedAccommodationIds = dysTypes
         .filter((dysType) => (selectedDysIds ?? []).includes(dysType.id))
         .flatMap((dysType) => (dysType.accommodations ?? []).map((accommodation) => accommodation.id));
@@ -395,11 +434,12 @@ export class StudentFormComponent {
         this.form.controls.accommodationIds.setValue(nextSelectedAccommodationIds, { emitEvent: false });
       }
     }),
-    map(([schoolYears, sections, schools, teachers, dysTypes, selectedSchoolId, selectedDysIds, errorMessage, studentState]) => ({
+    map(([schoolYears, sections, programs, schools, teachers, dysTypes, selectedSectionId, selectedSchoolId, selectedDysIds, errorMessage, studentState]) => ({
       isEditMode: this.isEditMode,
       enrollmentId: this.enrollmentId,
       schoolYears,
       sections,
+      programs: programs.filter((program) => program.section_id === selectedSectionId),
       schools,
       teachers,
       filteredTeachers: teachers.filter((teacher) => teacher.school_id === (selectedSchoolId || null)),
@@ -442,6 +482,7 @@ export class StudentFormComponent {
       birthDate: rawValue.birthDate || null,
       schoolYearId: rawValue.schoolYearId,
       sectionId: rawValue.sectionId || null,
+      programId: rawValue.programId || null,
       schoolId: rawValue.schoolId || null,
       status: rawValue.status,
       teacherIds,
@@ -489,6 +530,7 @@ export class StudentFormComponent {
       birthDate: student.birth_date ?? '',
       schoolYearId: student.school_year_id,
       sectionId: student.section_id ?? '',
+      programId: student.program_id ?? '',
       schoolId: student.school_id ?? '',
       status: student.status,
       teacherIds: student.teacher_ids ?? [],

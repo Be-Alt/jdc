@@ -13,6 +13,8 @@ type StudentOptionRow = {
   section_level: number | null;
   section_code: string | null;
   section_label: string | null;
+  program_id: string | null;
+  program_network_id: string | null;
 };
 
 export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) => {
@@ -29,7 +31,9 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         sec.id::text as section_id,
         sec.level as section_level,
         sec.code as section_code,
-        sec.label as section_label
+        sec.label as section_label,
+        prog.id::text as program_id,
+        prog.network_id::text as program_network_id
       from public.student_enrollments se
       inner join public.persons p
         on p.id = se.person_id
@@ -37,6 +41,8 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         on sy.id = se.school_year_id
       left join public.sections sec
         on sec.id = se.section_id
+      left join public.programs prog
+        on prog.id = se.program_id
       where se.owner_id = ${auth.userId}::uuid
       order by p.last_name asc, p.first_name asc
     `;

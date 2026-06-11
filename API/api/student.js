@@ -33,6 +33,12 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         sec.level as section_level,
         sec.type as section_type,
         sec.label as section_label,
+        prog.id::text as program_id,
+        prog.name as program_name,
+        prog.hours as program_hours,
+        prog_sub.name as program_subject_name,
+        prog_net.code as program_network_code,
+        prog_net.name as program_network_name,
         se.status,
         p.first_name,
         p.last_name,
@@ -70,6 +76,12 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         on sy.id = se.school_year_id
       left join public.sections sec
         on sec.id = se.section_id
+      left join public.programs prog
+        on prog.id = se.program_id
+      left join public.subjects prog_sub
+        on prog_sub.id = prog.subject_id
+      left join public.networks prog_net
+        on prog_net.id = prog.network_id
       left join public.student_school_history ssh
         on ssh.student_enrollment_id = se.id
        and ssh.end_date is null
@@ -101,6 +113,12 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         sec.level,
         sec.type,
         sec.label,
+        prog.id,
+        prog.name,
+        prog.hours,
+        prog_sub.name,
+        prog_net.code,
+        prog_net.name,
         se.status,
         p.first_name,
         p.last_name,

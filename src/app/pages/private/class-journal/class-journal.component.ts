@@ -1,8 +1,16 @@
 import { AsyncPipe, DatePipe } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { filter, firstValueFrom, forkJoin, map, shareReplay, startWith } from 'rxjs';
-import { ClassJournalEntry } from '../../../models/ClassJournal';
-import { ProgramNetwork, ProgramResource, ProgramSkill, ProgramUaa, SectionProgram } from '../../../models/Program';
+import { ClassJournalEntry, StudentIndicatorKey } from '../../../models/ClassJournal';
+import { ObservationCategory, ObservationTone } from '../../../models/Observation';
+import {
+  ProgramCatalogItem,
+  ProgramNetwork,
+  ProgramResource,
+  ProgramSkill,
+  ProgramUaa,
+  SectionProgram
+} from '../../../models/Program';
 import { SchoolHoliday } from '../../../models/SchoolHoliday';
 import { StudentOption } from '../../../models/StudentOption';
 import { WeeklyScheduleConfig, WeeklyScheduleSlot } from '../../../models/WeeklySchedule';
@@ -13,6 +21,8 @@ type ClassJournalViewModel = {
   schedule: WeeklyScheduleConfig | null;
   holidays: SchoolHoliday[];
   students: StudentOption[];
+  programs: ProgramCatalogItem[];
+  observationCategories: ObservationCategory[];
   isLoading: boolean;
 };
 
@@ -282,53 +292,131 @@ type SlotProgramState = {
                                           <p class="mt-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-slate-800">{{ savedStudent.comment }}</p>
                                         </div>
                                       }
+
+                                      @if (savedStudent.selected_observation_ids.length > 0) {
+                                        <div>
+                                          <p class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                                            Observations
+                                          </p>
+                                          <div class="mt-2 flex flex-wrap gap-2">
+                                            @for (
+                                              observationLabel of getSavedObservationLabels(
+                                                savedStudent.selected_observation_ids,
+                                                vm.observationCategories
+                                              );
+                                              track observationLabel
+                                            ) {
+                                              <span class="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-medium text-violet-800">
+                                                {{ observationLabel }}
+                                              </span>
+                                            }
+                                          </div>
+                                        </div>
+                                      }
+
+                                      @if (hasSavedIndicators(savedStudent)) {
+                                        <div>
+                                          <p class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                                            Indicateurs
+                                          </p>
+                                          <div class="mt-2 flex flex-wrap gap-2">
+                                            @if (savedStudent.fatigue_level !== null) {
+                                              <span class="rounded-full bg-orange-100 px-3 py-1.5 text-xs font-medium text-orange-800">
+                                                Fatigue : {{ savedStudent.fatigue_level }}/5
+                                              </span>
+                                            }
+                                            @if (savedStudent.concentration_level !== null) {
+                                              <span class="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-medium text-sky-800">
+                                                Concentration : {{ savedStudent.concentration_level }}/5
+                                              </span>
+                                            }
+                                            @if (savedStudent.motivation_level !== null) {
+                                              <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-800">
+                                                Motivation : {{ savedStudent.motivation_level }}/5
+                                              </span>
+                                            }
+                                            @if (savedStudent.emotional_wellbeing_level !== null) {
+                                              <span class="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-medium text-violet-800">
+                                                Bien-être : {{ savedStudent.emotional_wellbeing_level }}/5
+                                              </span>
+                                            }
+                                          </div>
+                                        </div>
+                                      }
                                     </div>
                                   } @else {
                                     <p class="mt-4 text-sm text-slate-500">Aucune donnée enregistrée pour cet élève à cette date.</p>
                                   }
                                 } @else {
-                                  <div class="mt-4 grid gap-3 lg:grid-cols-2">
-                                    <label class="block space-y-2">
-                                      <span class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">Section / année travaillée</span>
-                                      <select
-                                        [value]="getStudentSectionId(slot, student)"
-                                        (change)="selectStudentSectionIdForSlot(slot, student.enrollment_id, $any($event.target).value)"
-                                        class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none"
-                                      >
-                                        <option value="">Sélectionner une section</option>
-                                        @for (section of getSlotSections(slot, vm.students); track section.id) {
-                                          <option [value]="section.id">{{ section.code }} · {{ section.label }}</option>
-                                        }
-                                      </select>
-                                    </label>
-
-                                    <label class="block space-y-2">
-                                      <span class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">Réseau / programme</span>
-                                      <select
-                                        [value]="getStudentNetworkId(slot, student.enrollment_id)"
-                                        (change)="selectStudentNetworkIdForSlot(slot, student.enrollment_id, $any($event.target).value)"
-                                        [disabled]="!getStudentSectionId(slot, student) || (getStudentProgramState(slot, student.enrollment_id)?.networks?.length ?? 0) === 0"
-                                        class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
-                                      >
-                                        <option value="">Sélectionner un réseau</option>
-                                        @for (network of getStudentProgramState(slot, student.enrollment_id)?.networks ?? []; track network.id) {
-                                          <option [value]="network.id">{{ network.name }}</option>
-                                        }
-                                      </select>
-                                    </label>
-                                  </div>
-
                                   @if (getStudentProgramState(slot, student.enrollment_id); as state) {
                                     @if (state.isLoading) {
                                       <p class="mt-4 text-sm text-slate-500">Chargement du programme...</p>
                                     } @else if (state.errorMessage) {
                                       <p class="mt-4 text-sm text-rose-700">{{ state.errorMessage }}</p>
-                                    } @else if (state.program?.program?.subject?.name) {
-                                      <p class="mt-4 text-sm font-medium text-sky-800">
-                                        Matière / programme : {{ state.program?.program?.subject?.name }}
-                                      </p>
+                                    } @else if (state.program?.program; as selectedProgram) {
+                                      <div class="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                                        <p class="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">
+                                          Programme sélectionné
+                                        </p>
+                                        <p class="mt-1 text-sm font-semibold text-slate-900">
+                                          {{ selectedProgram.name || selectedProgram.subject?.name }}
+                                        </p>
+                                        <p class="mt-1 text-xs text-slate-600">
+                                          {{ selectedProgram.subject?.name }} ·
+                                          {{ selectedProgram.network?.name }} ·
+                                          {{ selectedProgram.hours }} h
+                                        </p>
+                                      </div>
                                     }
                                   }
+
+                                  <div class="mt-4">
+                                    <button
+                                      type="button"
+                                      (click)="toggleAlternativeProgram(slot, student.enrollment_id)"
+                                      class="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                      {{
+                                        isAlternativeProgramOpen(slot, student.enrollment_id)
+                                          ? 'Revenir au programme attribué'
+                                          : 'Ajouter des compétences d’une autre année'
+                                      }}
+                                    </button>
+
+                                    @if (isAlternativeProgramOpen(slot, student.enrollment_id)) {
+                                      <div class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                        <p class="text-xs font-semibold tracking-[0.16em] text-amber-800 uppercase">
+                                          Programmes disponibles
+                                        </p>
+                                        <p class="mt-1 text-sm text-slate-600">
+                                          Choisis un programme pour afficher immédiatement ses compétences.
+                                        </p>
+
+                                        <div class="mt-4 grid max-h-96 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+                                          @for (program of vm.programs; track program.id) {
+                                            <button
+                                              type="button"
+                                              (click)="selectAlternativeProgram(slot, student.enrollment_id, program)"
+                                              class="rounded-2xl border border-amber-200 bg-white p-4 text-left transition hover:border-amber-400 hover:bg-amber-100"
+                                            >
+                                              <p class="text-xs font-semibold tracking-[0.14em] text-amber-800 uppercase">
+                                                {{ program.section_code }} · {{ program.network_code }} · {{ program.hours }} h
+                                              </p>
+                                              <p class="mt-2 text-sm font-semibold text-slate-950">
+                                                {{ program.name || program.subject_name }}
+                                              </p>
+                                              <p class="mt-1 text-xs leading-5 text-slate-600">
+                                                {{ program.subject_name }} · {{ program.network_name }}
+                                              </p>
+                                              <p class="mt-2 text-xs text-slate-500">{{ program.section_label }}</p>
+                                            </button>
+                                          } @empty {
+                                            <p class="text-sm text-slate-600">Aucun programme disponible.</p>
+                                          }
+                                        </div>
+                                      </div>
+                                    }
+                                  </div>
 
                                   <label class="mt-4 block space-y-2">
                                     <span class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">Commentaire</span>
@@ -340,6 +428,141 @@ type SlotProgramState = {
                                       placeholder="Observation, adaptation, remarque..."
                                     ></textarea>
                                   </label>
+
+                                  <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                                    <div>
+                                      <p class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                                        Indicateurs rapides
+                                      </p>
+                                      <p class="mt-1 text-xs text-slate-500">
+                                        Facultatifs, de 0 à 5. Ils permettront de suivre les évolutions dans le temps.
+                                      </p>
+                                    </div>
+
+                                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                                      @for (indicator of studentIndicators; track indicator.key) {
+                                        <div class="rounded-2xl bg-slate-50 px-4 py-3">
+                                          <div class="flex items-center justify-between gap-3">
+                                            <div>
+                                              <p class="text-sm font-semibold text-slate-900">{{ indicator.label }}</p>
+                                              <p class="mt-0.5 text-xs text-slate-500">{{ indicator.scale }}</p>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                              <span class="min-w-20 text-right text-xs font-semibold text-slate-700">
+                                                @if (getStudentIndicator(slot, student.enrollment_id, indicator.key); as value) {
+                                                  {{ value }}/5
+                                                } @else if (getStudentIndicator(slot, student.enrollment_id, indicator.key) === 0) {
+                                                  0/5
+                                                } @else {
+                                                  Non évalué
+                                                }
+                                              </span>
+                                              @if (getStudentIndicator(slot, student.enrollment_id, indicator.key) !== null) {
+                                                <button
+                                                  type="button"
+                                                  (click)="setStudentIndicator(slot, student.enrollment_id, indicator.key, null)"
+                                                  class="rounded-full bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200"
+                                                  aria-label="Effacer cet indicateur"
+                                                >
+                                                  ×
+                                                </button>
+                                              }
+                                            </div>
+                                          </div>
+                                          <input
+                                            type="range"
+                                            min="0"
+                                            max="5"
+                                            step="1"
+                                            [value]="getStudentIndicator(slot, student.enrollment_id, indicator.key) ?? 3"
+                                            (input)="setStudentIndicator(slot, student.enrollment_id, indicator.key, $any($event.target).value)"
+                                            class="mt-3 w-full accent-sky-700"
+                                          />
+                                        </div>
+                                      }
+                                    </div>
+                                  </section>
+
+                                  <section class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <button
+                                      type="button"
+                                      (click)="toggleObservationsPanel(slot, student.enrollment_id)"
+                                      class="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+                                    >
+                                      <span>
+                                        <span class="block text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">
+                                          Observations structurées
+                                        </span>
+                                        <span class="mt-1 block text-xs text-slate-500">
+                                          Coche les constats utiles pour la synthèse de l’élève.
+                                        </span>
+                                      </span>
+                                      <span class="flex items-center gap-2">
+                                        @if (getTotalObservationCount(slot, student.enrollment_id) > 0) {
+                                          <span class="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
+                                            {{ getTotalObservationCount(slot, student.enrollment_id) }}
+                                          </span>
+                                        }
+                                        <span class="text-slate-400">
+                                          {{ isObservationsPanelOpen(slot, student.enrollment_id) ? '−' : '+' }}
+                                        </span>
+                                      </span>
+                                    </button>
+
+                                    @if (isObservationsPanelOpen(slot, student.enrollment_id)) {
+                                      <div class="space-y-3 border-t border-slate-200 bg-slate-50 p-4">
+                                        @for (category of vm.observationCategories; track category.id) {
+                                          <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                            <button
+                                              type="button"
+                                              (click)="toggleObservationCategory(slot, student.enrollment_id, category.id)"
+                                              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                                            >
+                                              <span class="text-sm font-semibold text-slate-900">{{ category.label }}</span>
+                                              <span class="flex items-center gap-2">
+                                                @if (getObservationCategoryCount(slot, student.enrollment_id, category) > 0) {
+                                                  <span class="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
+                                                    {{ getObservationCategoryCount(slot, student.enrollment_id, category) }}
+                                                  </span>
+                                                }
+                                                <span class="text-slate-400">
+                                                  {{ isObservationCategoryOpen(slot, student.enrollment_id, category.id) ? '−' : '+' }}
+                                                </span>
+                                              </span>
+                                            </button>
+
+                                            @if (isObservationCategoryOpen(slot, student.enrollment_id, category.id)) {
+                                              <div class="space-y-4 border-t border-slate-200 px-4 py-4">
+                                                @for (level of category.levels; track level.id) {
+                                                  <div>
+                                                    <p
+                                                      class="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                                                      [class]="getObservationToneClass(level.tone)"
+                                                    >
+                                                      {{ level.label }}
+                                                    </p>
+                                                    <div class="mt-2 grid gap-2 lg:grid-cols-2">
+                                                      @for (observation of level.items; track observation.id) {
+                                                        <label class="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
+                                                          <input
+                                                            type="checkbox"
+                                                            class="mt-1"
+                                                            [checked]="isObservationSelected(slot, student.enrollment_id, observation.id)"
+                                                            (change)="toggleObservation(slot, student.enrollment_id, observation.id)"
+                                                          />
+                                                          <span>{{ observation.label }}</span>
+                                                        </label>
+                                                      }
+                                                    </div>
+                                                  </div>
+                                                }
+                                              </div>
+                                            }
+                                          </section>
+                                        }
+                                      </div>
+                                    }
+                                  </section>
 
                                   @if (getStudentProgramState(slot, student.enrollment_id)?.program; as program) {
                                     <div class="mt-4 space-y-3">
@@ -445,7 +668,7 @@ type SlotProgramState = {
                               [disabled]="isSavingSlotKey === getSlotKey(slot)"
                               class="w-full rounded-2xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 disabled:cursor-wait disabled:bg-slate-400"
                             >
-                              {{ isSavingSlotKey === getSlotKey(slot) ? 'Enregistrement...' : 'Enregistrer la séance' }}
+                              {{ isSavingSlotKey === getSlotKey(slot) ? 'Validation...' : 'Valider la séance' }}
                             </button>
                           }
                         </div>
@@ -472,25 +695,44 @@ export class ClassJournalComponent implements OnInit {
   protected entriesBySlotKey: Record<string, ClassJournalEntry> = {};
   protected forcedEditSlotKeys = new Set<string>();
   protected openUaaKeys = new Set<string>();
+  protected openObservationCategoryKeys = new Set<string>();
+  protected openObservationsPanelKeys = new Set<string>();
+  protected alternativeProgramKeys = new Set<string>();
   protected isSavingSlotKey = '';
   protected saveErrorBySlotKey: Record<string, string> = {};
   protected saveSuccessBySlotKey: Record<string, string> = {};
+  protected readonly studentIndicators: Array<{
+    key: StudentIndicatorKey;
+    label: string;
+    scale: string;
+  }> = [
+    { key: 'fatigueLevel', label: 'Fatigue', scale: '0 = reposé · 5 = très fatigué' },
+    { key: 'concentrationLevel', label: 'Concentration', scale: '0 = très faible · 5 = excellente' },
+    { key: 'motivationLevel', label: 'Motivation', scale: '0 = très faible · 5 = très forte' },
+    { key: 'emotionalWellbeingLevel', label: 'Bien-être émotionnel', scale: '0 = difficile · 5 = serein' }
+  ];
 
   protected readonly vm$ = forkJoin({
     schedule: this.settingsService.getWeeklySchedule$(),
     holidays: this.settingsService.getSchoolHolidays$(),
-    students: this.settingsService.getStudentOptions$()
+    students: this.settingsService.getStudentOptions$(),
+    programs: this.settingsService.getProgramCatalog$(),
+    observationCategories: this.journalService.getObservationCatalog$()
   }).pipe(
-    map(({ schedule, holidays, students }): ClassJournalViewModel => ({
+    map(({ schedule, holidays, students, programs, observationCategories }): ClassJournalViewModel => ({
       schedule,
       holidays,
       students,
+      programs,
+      observationCategories,
       isLoading: false
     })),
     startWith({
       schedule: null,
       holidays: [],
       students: [],
+      programs: [],
+      observationCategories: [],
       isLoading: true
     }),
     shareReplay(1)
@@ -578,56 +820,36 @@ export class ClassJournalComponent implements OnInit {
     return holidays.find((holiday) => holiday.starts_on <= selectedIsoDate && holiday.ends_on >= selectedIsoDate) ?? null;
   }
 
-  protected getSlotSections(slot: WeeklyScheduleSlot, students: StudentOption[]): Array<{ id: string; code: string; label: string }> {
-    const sections = this.getStudentsForSlot(slot, students)
-      .filter((student) => student.section_id && student.section_code && student.section_label)
-      .map((student) => ({
-        id: student.section_id as string,
-        code: student.section_code as string,
-        label: student.section_label as string
-      }));
+  protected toggleAlternativeProgram(slot: WeeklyScheduleSlot, studentEnrollmentId: string): void {
+    const key = this.getStudentProgramKey(slot, studentEnrollmentId);
 
-    return sections.filter((section, index, collection) => collection.findIndex((item) => item.id === section.id) === index);
-  }
-
-  protected getStudentSectionId(slot: WeeklyScheduleSlot, student: StudentOption): string {
-    const draft = this.journalService.getStudentDraft(this.getSlotKey(slot), student.enrollment_id);
-    return draft.sectionId || student.section_id || '';
-  }
-
-  protected getStudentNetworkId(slot: WeeklyScheduleSlot, studentEnrollmentId: string): string {
-    return this.journalService.getStudentDraft(this.getSlotKey(slot), studentEnrollmentId).networkId;
-  }
-
-  protected async selectStudentSectionIdForSlot(slot: WeeklyScheduleSlot, studentEnrollmentId: string, sectionId: string): Promise<void> {
-    const slotKey = this.getSlotKey(slot);
-    this.journalService.setStudentSection(slotKey, studentEnrollmentId, sectionId);
-
-    if (!sectionId) {
-      this.studentProgramStates[this.getStudentProgramKey(slot, studentEnrollmentId)] = {
-        isLoading: false,
-        errorMessage: '',
-        networks: [],
-        program: null
-      };
+    if (this.alternativeProgramKeys.has(key)) {
+      this.alternativeProgramKeys.delete(key);
+      void this.restoreAssignedProgramForStudent(slot, studentEnrollmentId);
       return;
     }
 
-    await this.selectProgramForStudent(slotKey, studentEnrollmentId, sectionId);
+    this.alternativeProgramKeys.add(key);
   }
 
-  protected async selectStudentNetworkIdForSlot(slot: WeeklyScheduleSlot, studentEnrollmentId: string, networkId: string): Promise<void> {
+  protected isAlternativeProgramOpen(slot: WeeklyScheduleSlot, studentEnrollmentId: string): boolean {
+    return this.alternativeProgramKeys.has(this.getStudentProgramKey(slot, studentEnrollmentId));
+  }
+
+  protected async selectAlternativeProgram(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    program: ProgramCatalogItem
+  ): Promise<void> {
     const slotKey = this.getSlotKey(slot);
-    const studentDraft = this.journalService.getStudentDraft(slotKey, studentEnrollmentId);
-    const sectionId = studentDraft.sectionId;
-
-    this.journalService.setStudentNetwork(slotKey, studentEnrollmentId, networkId);
-
-    if (!sectionId || !networkId) {
-      return;
-    }
-
-    await this.selectProgramForStudent(slotKey, studentEnrollmentId, sectionId, networkId);
+    this.journalService.setStudentSection(slotKey, studentEnrollmentId, program.section_id);
+    await this.selectProgramForStudent(
+      slotKey,
+      studentEnrollmentId,
+      program.section_id,
+      program.network_id,
+      program.id
+    );
   }
 
   protected async saveSlot(slot: WeeklyScheduleSlot, students: StudentOption[]): Promise<void> {
@@ -662,10 +884,16 @@ export class ClassJournalComponent implements OnInit {
             studentEnrollmentId: student.enrollment_id,
             sectionId: studentDraft.sectionId || student.section_id || null,
             networkId: studentDraft.networkId || null,
+            programId: studentDraft.programId || null,
             attendanceStatus: studentDraft.attendanceStatus,
             comment: studentDraft.comment,
             selectedSkillIds: studentDraft.selectedSkillIds,
-            selectedResourceIds: studentDraft.selectedResourceIds
+            selectedResourceIds: studentDraft.selectedResourceIds,
+            selectedObservationIds: studentDraft.selectedObservationIds,
+            fatigueLevel: studentDraft.fatigueLevel,
+            concentrationLevel: studentDraft.concentrationLevel,
+            motivationLevel: studentDraft.motivationLevel,
+            emotionalWellbeingLevel: studentDraft.emotionalWellbeingLevel
           };
         })
       }));
@@ -695,6 +923,7 @@ export class ClassJournalComponent implements OnInit {
     studentEnrollmentId: string,
     sectionId: string,
     preferredNetworkId = '',
+    preferredProgramId = '',
     options?: { preserveSelections?: boolean }
   ): Promise<void> {
     const stateKey = `${slotKey}-${studentEnrollmentId}`;
@@ -723,7 +952,20 @@ export class ClassJournalComponent implements OnInit {
       this.journalService.setStudentNetwork(slotKey, studentEnrollmentId, network.id, {
         preserveSelections: options?.preserveSelections === true
       });
-      const program = await firstValueFrom(this.settingsService.getProgramBySectionId$(sectionId, network.id));
+      const program = await firstValueFrom(
+        this.settingsService.getProgramBySectionId$(
+          sectionId,
+          network.id,
+          null,
+          preferredProgramId || null
+        )
+      );
+      this.journalService.setStudentProgram(
+        slotKey,
+        studentEnrollmentId,
+        program.program?.id ?? ''
+      );
+      this.closeProgramUaas(slotKey, studentEnrollmentId);
       this.studentProgramStates[stateKey] = {
         isLoading: false,
         errorMessage: '',
@@ -738,6 +980,28 @@ export class ClassJournalComponent implements OnInit {
         program: null
       };
     }
+  }
+
+  private async restoreAssignedProgramForStudent(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string
+  ): Promise<void> {
+    const vm = await firstValueFrom(this.vm$.pipe(filter((value) => !value.isLoading)));
+    const student = vm.students.find((candidate) => candidate.enrollment_id === studentEnrollmentId);
+
+    if (!student?.section_id) {
+      return;
+    }
+
+    const slotKey = this.getSlotKey(slot);
+    this.journalService.setStudentSection(slotKey, studentEnrollmentId, student.section_id);
+    await this.selectProgramForStudent(
+      slotKey,
+      studentEnrollmentId,
+      student.section_id,
+      student.program_network_id ?? '',
+      student.program_id ?? ''
+    );
   }
 
   protected getStudentProgramState(slot: WeeklyScheduleSlot, studentEnrollmentId: string): SlotProgramState | null {
@@ -845,6 +1109,22 @@ export class ClassJournalComponent implements OnInit {
       .filter((value): value is string => Boolean(value));
   }
 
+  protected getSavedObservationLabels(
+    observationIds: string[],
+    categories: ObservationCategory[]
+  ): string[] {
+    const labelMap = new Map(
+      categories.flatMap((category) =>
+        category.levels.flatMap((level) =>
+          level.items.map((item) => [item.id, item.label] as const)
+        )
+      )
+    );
+    return observationIds
+      .map((observationId) => labelMap.get(observationId))
+      .filter((label): label is string => Boolean(label));
+  }
+
   protected getSavedUaaSummaries(
     slot: WeeklyScheduleSlot,
     studentEnrollmentId: string
@@ -893,12 +1173,129 @@ export class ClassJournalComponent implements OnInit {
     this.journalService.setStudentComment(this.getSlotKey(slot), studentEnrollmentId, comment);
   }
 
+  protected getStudentIndicator(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    indicator: StudentIndicatorKey
+  ): number | null {
+    return this.journalService.getStudentDraft(this.getSlotKey(slot), studentEnrollmentId)[indicator];
+  }
+
+  protected setStudentIndicator(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    indicator: StudentIndicatorKey,
+    value: number | string | null
+  ): void {
+    this.journalService.setStudentIndicator(
+      this.getSlotKey(slot),
+      studentEnrollmentId,
+      indicator,
+      value === null ? null : Number(value)
+    );
+  }
+
+  protected hasSavedIndicators(student: ClassJournalEntry['students'][number]): boolean {
+    return [
+      student.fatigue_level,
+      student.concentration_level,
+      student.motivation_level,
+      student.emotional_wellbeing_level
+    ].some((value) => typeof value === 'number');
+  }
+
   protected toggleSkill(slot: WeeklyScheduleSlot, studentEnrollmentId: string, skillId: string): void {
     this.journalService.toggleSkill(this.getSlotKey(slot), studentEnrollmentId, skillId);
   }
 
   protected toggleResource(slot: WeeklyScheduleSlot, studentEnrollmentId: string, resourceId: string): void {
     this.journalService.toggleResource(this.getSlotKey(slot), studentEnrollmentId, resourceId);
+  }
+
+  protected toggleObservation(slot: WeeklyScheduleSlot, studentEnrollmentId: string, observationId: string): void {
+    this.journalService.toggleObservation(this.getSlotKey(slot), studentEnrollmentId, observationId);
+  }
+
+  protected isObservationSelected(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    observationId: string
+  ): boolean {
+    return this.journalService
+      .getStudentDraft(this.getSlotKey(slot), studentEnrollmentId)
+      .selectedObservationIds.includes(observationId);
+  }
+
+  protected toggleObservationCategory(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    categoryId: string
+  ): void {
+    const key = `${this.getStudentProgramKey(slot, studentEnrollmentId)}-observation-${categoryId}`;
+    if (this.openObservationCategoryKeys.has(key)) {
+      this.openObservationCategoryKeys.delete(key);
+    } else {
+      this.openObservationCategoryKeys.add(key);
+    }
+  }
+
+  protected toggleObservationsPanel(slot: WeeklyScheduleSlot, studentEnrollmentId: string): void {
+    const key = `${this.getStudentProgramKey(slot, studentEnrollmentId)}-observations-panel`;
+    if (this.openObservationsPanelKeys.has(key)) {
+      this.openObservationsPanelKeys.delete(key);
+    } else {
+      this.openObservationsPanelKeys.add(key);
+    }
+  }
+
+  protected isObservationsPanelOpen(slot: WeeklyScheduleSlot, studentEnrollmentId: string): boolean {
+    return this.openObservationsPanelKeys.has(
+      `${this.getStudentProgramKey(slot, studentEnrollmentId)}-observations-panel`
+    );
+  }
+
+  protected getTotalObservationCount(slot: WeeklyScheduleSlot, studentEnrollmentId: string): number {
+    return this.journalService.getStudentDraft(
+      this.getSlotKey(slot),
+      studentEnrollmentId
+    ).selectedObservationIds.length;
+  }
+
+  protected isObservationCategoryOpen(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    categoryId: string
+  ): boolean {
+    return this.openObservationCategoryKeys.has(
+      `${this.getStudentProgramKey(slot, studentEnrollmentId)}-observation-${categoryId}`
+    );
+  }
+
+  protected getObservationCategoryCount(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    category: ObservationCategory
+  ): number {
+    const selectedIds = this.journalService.getStudentDraft(
+      this.getSlotKey(slot),
+      studentEnrollmentId
+    ).selectedObservationIds;
+    return category.levels
+      .flatMap((level) => level.items)
+      .filter((item) => selectedIds.includes(item.id)).length;
+  }
+
+  protected getObservationToneClass(tone: ObservationTone): string {
+    switch (tone) {
+      case 'positive':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'mixed':
+        return 'bg-amber-100 text-amber-800';
+      case 'warning':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-rose-100 text-rose-800';
+    }
   }
 
   protected isSkillSelected(slot: WeeklyScheduleSlot, studentEnrollmentId: string, skillId: string): boolean {
@@ -953,6 +1350,19 @@ export class ClassJournalComponent implements OnInit {
     return `${this.getStudentProgramKey(slot, studentEnrollmentId)}-${uaaId}`;
   }
 
+  private closeProgramUaas(
+    slotKey: string,
+    studentEnrollmentId: string
+  ): void {
+    const studentKeyPrefix = `${slotKey}-${studentEnrollmentId}-`;
+
+    for (const key of Array.from(this.openUaaKeys)) {
+      if (key.startsWith(studentKeyPrefix)) {
+        this.openUaaKeys.delete(key);
+      }
+    }
+  }
+
   protected getSlotKey(slot: WeeklyScheduleSlot): string {
     return `${this.toIsoDate(this.selectedDate)}-${slot.id ?? slot.position}-${slot.starts_at}`;
   }
@@ -1004,6 +1414,12 @@ export class ClassJournalComponent implements OnInit {
 
   private async loadEntriesForSelectedDate(): Promise<void> {
     this.entriesBySlotKey = {};
+    this.studentProgramStates = {};
+    this.openUaaKeys.clear();
+    this.openObservationCategoryKeys.clear();
+    this.openObservationsPanelKeys.clear();
+    this.alternativeProgramKeys.clear();
+    this.journalService.resetDrafts();
 
     try {
       const entries = await firstValueFrom(this.journalService.getEntriesByDate$(this.toIsoDate(this.selectedDate)));
@@ -1030,15 +1446,16 @@ export class ClassJournalComponent implements OnInit {
       entries.flatMap((entry) =>
         entry.students
           .filter((student) => student.section_id)
-          .map((student) =>
-            this.selectProgramForStudent(
+          .map((student) => {
+            return this.selectProgramForStudent(
               entry.slot_key,
               student.student_enrollment_id,
               student.section_id as string,
               student.network_id ?? '',
+              student.program_id ?? '',
               { preserveSelections: true }
-            )
-          )
+            );
+          })
       )
     );
   }
@@ -1065,15 +1482,22 @@ export class ClassJournalComponent implements OnInit {
 
             const studentDraft = this.journalService.getStudentDraft(this.getSlotKey(slot), student.enrollment_id);
             const sectionId = studentDraft.sectionId || student.section_id;
-            const networkId = studentDraft.networkId || '';
+            const hasSavedStudentChoice = Boolean(studentDraft.sectionId || studentDraft.networkId);
+            const networkId = studentDraft.networkId || student.program_network_id || '';
+            const programId = hasSavedStudentChoice ? '' : student.program_id || '';
 
             if (!sectionId) {
               return null;
             }
 
-            return this.selectProgramForStudent(this.getSlotKey(slot), student.enrollment_id, sectionId, networkId, {
-              preserveSelections: true
-            });
+            return this.selectProgramForStudent(
+              this.getSlotKey(slot),
+              student.enrollment_id,
+              sectionId,
+              networkId,
+              programId,
+              { preserveSelections: true }
+            );
           })
       )
       .filter((task): task is Promise<void> => Boolean(task));
@@ -1104,7 +1528,9 @@ export class ClassJournalComponent implements OnInit {
       savedStudent.comment ||
       savedStudent.attendance_status !== 'present' ||
       savedStudent.selected_skill_ids.length > 0 ||
-      savedStudent.selected_resource_ids.length > 0
+      savedStudent.selected_resource_ids.length > 0 ||
+      savedStudent.selected_observation_ids.length > 0 ||
+      this.hasSavedIndicators(savedStudent)
     );
   }
 }

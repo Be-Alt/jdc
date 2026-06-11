@@ -9,10 +9,16 @@ type ClassJournalStudentRow = {
   student_enrollment_id: string;
   section_id: string | null;
   network_id: string | null;
+  program_id: string | null;
   attendance_status: AttendanceStatus;
   comment: string;
   selected_skill_ids: string[];
   selected_resource_ids: string[];
+  selected_observation_ids: string[];
+  fatigue_level: number | null;
+  concentration_level: number | null;
+  motivation_level: number | null;
+  emotional_wellbeing_level: number | null;
 };
 
 type ClassJournalEntryRow = {
@@ -42,10 +48,16 @@ type ClassJournalSaveInput = {
       studentEnrollmentId?: string;
       sectionId?: string | null;
       networkId?: string | null;
+      programId?: string | null;
       attendanceStatus?: AttendanceStatus;
       comment?: string | null;
       selectedSkillIds?: string[];
       selectedResourceIds?: string[];
+      selectedObservationIds?: string[];
+      fatigueLevel?: number | null;
+      concentrationLevel?: number | null;
+      motivationLevel?: number | null;
+      emotionalWellbeingLevel?: number | null;
   }>;
 };
 
@@ -66,6 +78,17 @@ function getStringArray(value: string[] | undefined): string[] {
     .map((item) => item?.trim())
     .filter((item): item is string => Boolean(item))
     .filter((item, index, collection) => collection.indexOf(item) === index);
+}
+
+function getIndicatorValue(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const numberValue = Number(value);
+  return Number.isInteger(numberValue) && numberValue >= 0 && numberValue <= 5
+    ? numberValue
+    : null;
 }
 
 function isMissingRelationError(error: unknown, relationName: string): boolean {
@@ -99,10 +122,16 @@ async function loadEntriesByDateFromClassSessions(sql: any, ownerId: string, ent
             'student_enrollment_id', css.student_enrollment_id::text,
             'section_id', css.section_id::text,
             'network_id', css.network_id::text,
+            'program_id', css.program_id::text,
             'attendance_status', css.status,
             'comment', coalesce(css.comment, ''),
+            'fatigue_level', css.fatigue_level,
+            'concentration_level', css.concentration_level,
+            'motivation_level', css.motivation_level,
+            'emotional_wellbeing_level', css.emotional_wellbeing_level,
             'selected_skill_ids', coalesce(skills.selected_skill_ids, '{}'::text[]),
-            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[])
+            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[]),
+            'selected_observation_ids', coalesce(observations.selected_observation_ids, '{}'::text[])
           )
           order by css.student_enrollment_id::text
         ) as students
@@ -121,6 +150,13 @@ async function loadEntriesByDateFromClassSessions(sql: any, ownerId: string, ent
         where cssr.session_id = css.session_id
           and cssr.student_enrollment_id = css.student_enrollment_id
       ) resources on true
+      left join lateral (
+        select
+          array_agg(csso.observation_item_id order by csso.observation_item_id) as selected_observation_ids
+        from public.class_session_student_observations csso
+        where csso.session_id = css.session_id
+          and csso.student_enrollment_id = css.student_enrollment_id
+      ) observations on true
       where css.session_id = cs.id
     ) students on true
     where cs.owner_id = ${ownerId}::uuid
@@ -153,10 +189,16 @@ async function loadEntriesByDateFromLegacyEntries(sql: any, ownerId: string, ent
             'student_enrollment_id', css.student_enrollment_id::text,
             'section_id', css.section_id::text,
             'network_id', css.network_id::text,
+            'program_id', css.program_id::text,
             'attendance_status', css.status,
             'comment', coalesce(css.comment, ''),
+            'fatigue_level', css.fatigue_level,
+            'concentration_level', css.concentration_level,
+            'motivation_level', css.motivation_level,
+            'emotional_wellbeing_level', css.emotional_wellbeing_level,
             'selected_skill_ids', coalesce(skills.selected_skill_ids, '{}'::text[]),
-            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[])
+            'selected_resource_ids', coalesce(resources.selected_resource_ids, '{}'::text[]),
+            'selected_observation_ids', coalesce(observations.selected_observation_ids, '{}'::text[])
           )
           order by css.student_enrollment_id::text
         ) as students
@@ -175,6 +217,13 @@ async function loadEntriesByDateFromLegacyEntries(sql: any, ownerId: string, ent
         where cssr.session_id = css.session_id
           and cssr.student_enrollment_id = css.student_enrollment_id
       ) resources on true
+      left join lateral (
+        select
+          array_agg(csso.observation_item_id order by csso.observation_item_id) as selected_observation_ids
+        from public.class_session_student_observations csso
+        where csso.session_id = css.session_id
+          and csso.student_enrollment_id = css.student_enrollment_id
+      ) observations on true
       where css.session_id = cje.id
     ) students on true
     where cje.owner_id = ${ownerId}::uuid
@@ -377,6 +426,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             studentEnrollmentId: item.studentEnrollmentId?.trim() || '',
             sectionId: item.sectionId?.trim() || null,
             networkId: item.networkId?.trim() || null,
+            programId: item.programId?.trim() || null,
             attendanceStatus:
               item.attendanceStatus === 'absent' ||
               item.attendanceStatus === 'late' ||
@@ -385,7 +435,12 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
                 : 'present',
             comment: item.comment?.trim() || '',
             selectedSkillIds: getStringArray(item.selectedSkillIds),
-            selectedResourceIds: getStringArray(item.selectedResourceIds)
+            selectedResourceIds: getStringArray(item.selectedResourceIds),
+            selectedObservationIds: getStringArray(item.selectedObservationIds),
+            fatigueLevel: getIndicatorValue(item.fatigueLevel),
+            concentrationLevel: getIndicatorValue(item.concentrationLevel),
+            motivationLevel: getIndicatorValue(item.motivationLevel),
+            emotionalWellbeingLevel: getIndicatorValue(item.emotionalWellbeingLevel)
           }))
           .filter((item) => Boolean(item.studentEnrollmentId))
       : [];
@@ -434,16 +489,26 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           student_enrollment_id,
           section_id,
           network_id,
+          program_id,
           status,
-          comment
+          comment,
+          fatigue_level,
+          concentration_level,
+          motivation_level,
+          emotional_wellbeing_level
         )
         select
           ${sessionId}::uuid,
           se.id,
           ${studentEntry.sectionId}::uuid,
           ${studentEntry.networkId}::uuid,
+          ${studentEntry.programId}::uuid,
           ${studentEntry.attendanceStatus},
-          ${studentEntry.comment}
+          ${studentEntry.comment},
+          ${studentEntry.fatigueLevel},
+          ${studentEntry.concentrationLevel},
+          ${studentEntry.motivationLevel},
+          ${studentEntry.emotionalWellbeingLevel}
         from public.student_enrollments se
         where se.id = ${studentEntry.studentEnrollmentId}::uuid
           and se.owner_id = ${auth.userId}::uuid
@@ -470,6 +535,23 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           select ${sessionId}::uuid, ${studentEntry.studentEnrollmentId}::uuid, r.id
           from public.resources r
           where r.id = ${resourceId}::uuid
+          on conflict do nothing
+        `;
+      }
+
+      for (const observationId of studentEntry.selectedObservationIds) {
+        await sql`
+          insert into public.class_session_student_observations (
+            session_id,
+            student_enrollment_id,
+            observation_item_id
+          )
+          select
+            ${sessionId}::uuid,
+            ${studentEntry.studentEnrollmentId}::uuid,
+            oi.id
+          from public.observation_items oi
+          where oi.id = ${observationId}
           on conflict do nothing
         `;
       }

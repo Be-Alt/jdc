@@ -6,9 +6,11 @@ import {
   ClassJournalEntry,
   ClassJournalEntryPayload,
   ClassJournalSlotDraft,
-  ClassJournalStudentDraft
+  ClassJournalStudentDraft,
+  StudentIndicatorKey
 } from '../models/ClassJournal';
 import { ApiResponse } from '../models/response';
+import { ObservationCategory } from '../models/Observation';
 
 @Injectable({
   providedIn: 'root'
@@ -65,6 +67,21 @@ export class ClassJournalService {
     );
   }
 
+  getObservationCatalog$(): Observable<ObservationCategory[]> {
+    return defer(() => from(apiFetch('/observation-catalog', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de charger les observations.'));
+            }
+            return from([(payload.data ?? []) as ObservationCategory[]]);
+          })
+        )
+      )
+    );
+  }
+
   hydrateEntries(entries: ClassJournalEntry[]): void {
     const drafts = this.draftsSubject.value;
     const hydratedDrafts = entries.reduce<Record<string, ClassJournalSlotDraft>>(
@@ -79,10 +96,16 @@ export class ClassJournalService {
               [student.student_enrollment_id]: {
                 sectionId: student.section_id ?? '',
                 networkId: student.network_id ?? '',
+                programId: student.program_id ?? '',
                 attendanceStatus: student.attendance_status,
                 comment: student.comment,
                 selectedSkillIds: student.selected_skill_ids,
-                selectedResourceIds: student.selected_resource_ids
+                selectedResourceIds: student.selected_resource_ids,
+                selectedObservationIds: student.selected_observation_ids ?? [],
+                fatigueLevel: student.fatigue_level,
+                concentrationLevel: student.concentration_level,
+                motivationLevel: student.motivation_level,
+                emotionalWellbeingLevel: student.emotional_wellbeing_level
               }
             }),
             {}
@@ -93,6 +116,10 @@ export class ClassJournalService {
     );
 
     this.draftsSubject.next(hydratedDrafts);
+  }
+
+  resetDrafts(): void {
+    this.draftsSubject.next({});
   }
 
   updateDraft(slotKey: string, patch: Partial<ClassJournalSlotDraft>): void {
@@ -120,10 +147,16 @@ export class ClassJournalService {
     return this.getDraft(slotKey).studentRecords[studentEnrollmentId] ?? {
       sectionId: '',
       networkId: '',
+      programId: '',
       attendanceStatus: 'present',
       comment: '',
       selectedSkillIds: [],
-      selectedResourceIds: []
+      selectedResourceIds: [],
+      selectedObservationIds: [],
+      fatigueLevel: null,
+      concentrationLevel: null,
+      motivationLevel: null,
+      emotionalWellbeingLevel: null
     };
   }
 
@@ -175,6 +208,27 @@ export class ClassJournalService {
     });
   }
 
+  toggleObservation(slotKey: string, studentEnrollmentId: string, observationId: string): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      selectedObservationIds: this.toggleId(studentDraft.selectedObservationIds, observationId)
+    });
+  }
+
+  setStudentIndicator(
+    slotKey: string,
+    studentEnrollmentId: string,
+    indicator: StudentIndicatorKey,
+    value: number | null
+  ): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      [indicator]: value
+    });
+  }
+
   private updateStudentDraft(slotKey: string, studentEnrollmentId: string, studentDraft: ClassJournalStudentDraft): void {
     const slotDraft = this.getDraft(slotKey);
     this.updateDraft(slotKey, {
@@ -197,6 +251,7 @@ export class ClassJournalService {
       ...studentDraft,
       sectionId,
       networkId: '',
+      programId: '',
       selectedSkillIds: preserveSelections ? studentDraft.selectedSkillIds : [],
       selectedResourceIds: preserveSelections ? studentDraft.selectedResourceIds : []
     });
@@ -213,8 +268,17 @@ export class ClassJournalService {
     this.updateStudentDraft(slotKey, studentEnrollmentId, {
       ...studentDraft,
       networkId,
+      programId: '',
       selectedSkillIds: preserveSelections ? studentDraft.selectedSkillIds : [],
       selectedResourceIds: preserveSelections ? studentDraft.selectedResourceIds : []
+    });
+  }
+
+  setStudentProgram(slotKey: string, studentEnrollmentId: string, programId: string): void {
+    const studentDraft = this.getStudentDraft(slotKey, studentEnrollmentId);
+    this.updateStudentDraft(slotKey, studentEnrollmentId, {
+      ...studentDraft,
+      programId
     });
   }
 

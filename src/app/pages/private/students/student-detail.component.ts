@@ -4,10 +4,13 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getDysIconConfig } from '../../../helpers/dys-icons';
 import { BehaviorSubject, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 import { Student } from '../../../models/Student';
+import { ProgramSkill, ProgramUaa } from '../../../models/Program';
+import { StudentAttendancePoint, StudentSummary } from '../../../models/StudentSummary';
 import { StudentsService } from '../../../services/students.service';
 
 type StudentDetailViewModel = {
   student: Student | null;
+  summary: StudentSummary | null;
   isLoading: boolean;
   errorMessage: string;
   successMessage: string;
@@ -113,6 +116,21 @@ type StudentDetailViewModel = {
                   <p class="font-medium text-slate-800">École</p>
                   <p class="mt-1 text-slate-600">{{ vm.student.school_name || 'Non renseignée' }}</p>
                 </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4 md:col-span-2">
+                  <p class="font-medium text-slate-800">Programme attribué</p>
+                  @if (vm.student.program_id) {
+                    <p class="mt-1 text-slate-700">
+                      {{ vm.student.program_name || vm.student.program_subject_name }}
+                    </p>
+                    <p class="mt-1 text-sm text-slate-500">
+                      {{ vm.student.program_subject_name }} ·
+                      {{ vm.student.program_network_code || vm.student.program_network_name }} ·
+                      {{ vm.student.program_hours }} h
+                    </p>
+                  } @else {
+                    <p class="mt-1 text-slate-600">Aucun programme attribué</p>
+                  }
+                </div>
               </div>
 
               <div class="mt-6 rounded-2xl bg-slate-50 px-4 py-4">
@@ -208,6 +226,112 @@ type StudentDetailViewModel = {
               </div>
             </article>
           </div>
+
+          <article class="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="text-sm font-medium tracking-[0.2em] text-slate-500 uppercase">Progression</p>
+                <h3 class="mt-2 text-2xl font-semibold text-slate-950">Programme de l’année</h3>
+              </div>
+              @if (vm.summary.program; as program) {
+                <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                  {{ getProgramProgress(vm.summary) }} % travaillé
+                </span>
+              }
+            </div>
+
+            @if (vm.summary.program; as program) {
+              <p class="mt-2 text-sm text-slate-600">
+                {{ program.program?.name || program.program?.subject?.name }} · {{ program.section.code }}
+              </p>
+              <div class="mt-5 space-y-3">
+                @for (uaa of program.uaas; track uaa.id) {
+                  <section class="rounded-2xl border border-slate-200 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <div>
+                        <p class="text-xs font-semibold tracking-[0.16em] text-slate-500 uppercase">{{ uaa.code }}</p>
+                        <p class="mt-1 font-semibold text-slate-900">{{ uaa.name }}</p>
+                      </div>
+                      <span class="text-xs font-medium text-slate-500">
+                        {{ getUaaWorkedCount(vm.summary, uaa) }} / {{ getUaaItemCount(uaa) }}
+                      </span>
+                    </div>
+                    <div class="mt-4 grid gap-2 lg:grid-cols-2">
+                      @for (skill of flattenUaaSkills(uaa); track skill.id) {
+                        <div
+                          class="rounded-xl px-3 py-2 text-sm"
+                          [class.bg-emerald-100]="vm.summary.workedSkillIds.includes(skill.id)"
+                          [class.text-emerald-900]="vm.summary.workedSkillIds.includes(skill.id)"
+                          [class.bg-slate-50]="!vm.summary.workedSkillIds.includes(skill.id)"
+                          [class.text-slate-500]="!vm.summary.workedSkillIds.includes(skill.id)"
+                        >
+                          {{ skill.description }}
+                        </div>
+                      }
+                      @for (resource of uaa.resources; track resource.id) {
+                        <div
+                          class="rounded-xl px-3 py-2 text-sm"
+                          [class.bg-sky-100]="vm.summary.workedResourceIds.includes(resource.id)"
+                          [class.text-sky-900]="vm.summary.workedResourceIds.includes(resource.id)"
+                          [class.bg-slate-50]="!vm.summary.workedResourceIds.includes(resource.id)"
+                          [class.text-slate-500]="!vm.summary.workedResourceIds.includes(resource.id)"
+                        >
+                          {{ resource.description }}
+                        </div>
+                      }
+                    </div>
+                  </section>
+                }
+              </div>
+            } @else {
+              <p class="mt-4 text-sm text-slate-600">Aucun programme attribué à cet élève.</p>
+            }
+          </article>
+
+          <article class="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="text-sm font-medium tracking-[0.2em] text-slate-500 uppercase">Présence</p>
+                <h3 class="mt-2 text-2xl font-semibold text-slate-950">Évolution mensuelle</h3>
+                <p class="mt-2 text-sm text-slate-600">Les absences du professeur sont exclues du calcul.</p>
+              </div>
+              <div class="rounded-2xl bg-sky-50 px-5 py-3 text-center">
+                <p class="text-3xl font-semibold text-sky-800">{{ vm.summary.attendance.percentage }} %</p>
+                <p class="mt-1 text-xs text-sky-700">
+                  {{ vm.summary.attendance.attended }} cours suivis sur {{ vm.summary.attendance.total }}
+                </p>
+              </div>
+            </div>
+
+            @if (vm.summary.attendance.points.length > 0) {
+              <div class="mt-6 overflow-x-auto">
+                <svg class="h-64 min-w-[640px] w-full" viewBox="0 0 700 240" role="img" aria-label="Courbe de présence mensuelle">
+                  @for (line of [0, 25, 50, 75, 100]; track line) {
+                    <line x1="55" x2="680" [attr.y1]="210 - line * 1.7" [attr.y2]="210 - line * 1.7" stroke="#e2e8f0" />
+                    <text x="10" [attr.y]="214 - line * 1.7" class="fill-slate-400 text-[11px]">{{ line }} %</text>
+                  }
+                  <polyline
+                    [attr.points]="getAttendancePolyline(vm.summary!.attendance.points)"
+                    fill="none"
+                    stroke="#0369a1"
+                    stroke-width="4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  @for (point of vm.summary!.attendance.points; track point.month; let index = $index) {
+                    <circle [attr.cx]="getChartX(index, vm.summary!.attendance.points.length)" [attr.cy]="getChartY(point.percentage)" r="5" fill="#0369a1" />
+                    <text [attr.x]="getChartX(index, vm.summary!.attendance.points.length)" y="232" text-anchor="middle" class="fill-slate-500 text-[11px]">
+                      {{ formatMonth(point.month) }}
+                    </text>
+                  }
+                </svg>
+              </div>
+            } @else {
+              <p class="mt-5 rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                Aucune séance enregistrée pour calculer la présence.
+              </p>
+            }
+          </article>
         }
       }
     </section>
@@ -229,15 +353,20 @@ export class StudentDetailComponent {
     this.errorMessageSubject
   ]).pipe(
     switchMap(([enrollmentId, _refresh, successMessage, errorMessage]) =>
-      this.studentsService.getStudentByEnrollmentId$(enrollmentId).pipe(
-        map((student) => ({
+      combineLatest([
+        this.studentsService.getStudentByEnrollmentId$(enrollmentId),
+        this.studentsService.getStudentSummary$(enrollmentId)
+      ]).pipe(
+        map(([student, summary]) => ({
           student,
+          summary,
           isLoading: false,
           errorMessage,
           successMessage
         })),
         startWith({
           student: null,
+          summary: null,
           isLoading: true,
           errorMessage,
           successMessage
@@ -245,6 +374,7 @@ export class StudentDetailComponent {
         catchError((error: unknown) =>
           of({
             student: null,
+            summary: null,
             isLoading: false,
             errorMessage:
               error instanceof Error ? error.message : 'Impossible de charger la fiche élève.',
@@ -257,6 +387,42 @@ export class StudentDetailComponent {
 
   protected getDysIconConfig(value: string) {
     return getDysIconConfig(value);
+  }
+
+  protected flattenUaaSkills(uaa: ProgramUaa): ProgramSkill[] {
+    return uaa.skillGroups.flatMap((group) => group.skills);
+  }
+
+  protected getUaaItemCount(uaa: ProgramUaa): number {
+    return this.flattenUaaSkills(uaa).length + uaa.resources.length;
+  }
+
+  protected getUaaWorkedCount(summary: StudentSummary, uaa: ProgramUaa): number {
+    return this.flattenUaaSkills(uaa).filter((skill) => summary.workedSkillIds.includes(skill.id)).length
+      + uaa.resources.filter((resource) => summary.workedResourceIds.includes(resource.id)).length;
+  }
+
+  protected getProgramProgress(summary: StudentSummary): number {
+    if (!summary.program) return 0;
+    const total = summary.program.uaas.reduce((sum, uaa) => sum + this.getUaaItemCount(uaa), 0);
+    const worked = summary.program.uaas.reduce((sum, uaa) => sum + this.getUaaWorkedCount(summary, uaa), 0);
+    return total > 0 ? Math.round((worked / total) * 100) : 0;
+  }
+
+  protected getChartX(index: number, count: number): number {
+    return count <= 1 ? 365 : 55 + (index * 625) / (count - 1);
+  }
+
+  protected getChartY(percentage: number): number {
+    return 210 - percentage * 1.7;
+  }
+
+  protected getAttendancePolyline(points: StudentAttendancePoint[]): string {
+    return points.map((point, index) => `${this.getChartX(index, points.length)},${this.getChartY(point.percentage)}`).join(' ');
+  }
+
+  protected formatMonth(month: string): string {
+    return new Intl.DateTimeFormat('fr-BE', { month: 'short' }).format(new Date(`${month}-01T00:00:00`));
   }
 
   protected goToEdit(): void {

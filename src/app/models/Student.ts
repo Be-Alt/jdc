@@ -10,6 +10,12 @@ export type Student = {
   section_level: number | null;
   section_type: string | null;
   section_label: string | null;
+  program_id: string | null;
+  program_name: string | null;
+  program_hours: number | null;
+  program_subject_name: string | null;
+  program_network_code: string | null;
+  program_network_name: string | null;
   status: string;
   first_name: string;
   last_name: string;

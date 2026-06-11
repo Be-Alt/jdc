@@ -4,6 +4,8 @@ import { DysType } from '../models/DysType';
 import { School } from '../models/School';
 import { Section } from '../models/Section';
 import { Student } from '../models/Student';
+import { StudentSummary } from '../models/StudentSummary';
+import { ProgramCatalogItem } from '../models/Program';
 import { Teacher } from '../models/Teacher';
 import { ApiResponse } from '../models/response';
 import { apiFetch } from '../helpers/api-session';
@@ -76,6 +78,22 @@ export class StudentsService {
     );
   }
 
+  getPrograms$(): Observable<ProgramCatalogItem[]> {
+    return defer(() => from(apiFetch('/program-catalog', { method: 'GET' }))).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de récupérer les programmes.'));
+            }
+
+            return from([(payload.data ?? []) as ProgramCatalogItem[]]);
+          })
+        )
+      )
+    );
+  }
+
   getStudentByEnrollmentId$(enrollmentId: string): Observable<Student> {
     return defer(() =>
       from(
@@ -100,6 +118,23 @@ export class StudentsService {
     );
   }
 
+  getStudentSummary$(enrollmentId: string): Observable<StudentSummary> {
+    return defer(() =>
+      from(apiFetch(`/student-summary?enrollmentId=${encodeURIComponent(enrollmentId)}`, { method: 'GET' }))
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de charger la synthèse élève.'));
+            }
+            return from([payload.data as StudentSummary]);
+          })
+        )
+      )
+    );
+  }
+
   saveStudent$(payload: {
     enrollmentId?: string;
     firstName: string;
@@ -107,6 +142,7 @@ export class StudentsService {
     birthDate?: string | null;
     schoolYearId: string;
     sectionId?: string | null;
+    programId?: string | null;
     schoolId?: string | null;
     status: string;
     teacherIds: string[];
