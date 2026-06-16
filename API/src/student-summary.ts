@@ -50,6 +50,7 @@ async function loadAttendance(sql: any, ownerId: string, enrollmentId: string, u
 export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
   try {
     const enrollmentId = getQueryParam((req as { url?: string }).url, 'enrollmentId');
+    const includeProgram = getQueryParam((req as { url?: string }).url, 'includeProgram') !== 'false';
     if (!enrollmentId) {
       res.status(400).json({ ok: false, error: 'Missing enrollmentId query parameter.' });
       return;
@@ -73,7 +74,7 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
     let workedSkillIds: string[] = [];
     let workedResourceIds: string[] = [];
 
-    if (enrollment.program_id) {
+    if (includeProgram && enrollment.program_id) {
       const programRows = await sql`
         select
           sec.id::text as section_id, sec.code as section_code, sec.level as section_level,
@@ -85,7 +86,9 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
           u.id::text as uaa_id, u.code as uaa_code, u.name as uaa_name,
           pt.id::text as process_type_id, pt.name as process_type_name,
           s.id::text as skill_id, s.description as skill_description,
-          r.id::text as resource_id, r.description as resource_description
+          r.id::text as resource_id, r.description as resource_description,
+          c.id::text as competence_id, c.description as competence_description,
+          st.id::text as strategy_id, st.description as strategy_description
         from public.programs p
         join public.sections sec on sec.id = p.section_id
         join public.subjects sub on sub.id = p.subject_id
@@ -94,6 +97,8 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         left join public.skills s on s.uaa_id = u.id
         left join public.process_types pt on pt.id = s.process_type_id
         left join public.resources r on r.uaa_id = u.id
+        left join public.uaa_competences c on c.uaa_id = u.id
+        left join public.uaa_strategies st on st.uaa_id = u.id
         where p.id = ${enrollment.program_id}::uuid
         order by u.code, pt.name, s.description, r.description
       `;
@@ -110,6 +115,12 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
           }
           if (row.resource_id && !uaa.resources.some((item: any) => item.id === row.resource_id)) {
             uaa.resources.push({ id: row.resource_id, description: row.resource_description });
+          }
+          if (row.competence_id && !uaa.competences.some((item: any) => item.id === row.competence_id)) {
+            uaa.competences.push({ id: row.competence_id, description: row.competence_description });
+          }
+          if (row.strategy_id && !uaa.strategies.some((item: any) => item.id === row.strategy_id)) {
+            uaa.strategies.push({ id: row.strategy_id, description: row.strategy_description });
           }
           if (row.skill_id) {
             const groupId = row.process_type_id ?? 'other';

@@ -561,8 +561,10 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                       </div>
                     }
 
-                    <div class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-                      <section class="rounded-[1.5rem] border border-slate-200 bg-white p-4">
+                    @if (isProgramEditing || uaa.skillGroups.length > 0 || uaa.resources.length > 0) {
+                    <div class="mt-6 grid gap-5 lg:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+                      @if (isProgramEditing || uaa.skillGroups.length > 0) {
+                        <section class="rounded-[1.5rem] border border-slate-200 bg-white p-4">
                         <p class="text-sm font-semibold text-slate-900">Processus</p>
 
                         @if (uaa.skillGroups.length > 0) {
@@ -612,9 +614,11 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                         } @else {
                           <p class="mt-3 text-sm text-slate-500">Aucun processus renseigné.</p>
                         }
-                      </section>
+                        </section>
+                      }
 
-                      <aside class="rounded-[1.5rem] border border-sky-100 bg-sky-50/60 p-4">
+                      @if (isProgramEditing || uaa.resources.length > 0) {
+                        <aside class="rounded-[1.5rem] border border-sky-100 bg-sky-50/60 p-4">
                         <p class="text-sm font-semibold text-slate-900">Ressources</p>
 
                         @if (uaa.resources.length > 0) {
@@ -647,8 +651,10 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                         } @else {
                           <p class="mt-3 text-sm text-slate-500">Aucune ressource renseignée.</p>
                         }
-                      </aside>
+                        </aside>
+                      }
                     </div>
+                    }
 
                     @if (uaa.competences.length > 0) {
                       <div class="mt-5">

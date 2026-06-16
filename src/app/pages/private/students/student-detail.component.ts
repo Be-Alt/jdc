@@ -2,15 +2,18 @@ import { AsyncPipe, DatePipe, NgClass } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getDysIconConfig } from '../../../helpers/dys-icons';
-import { BehaviorSubject, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, startWith, switchMap } from 'rxjs';
 import { Student } from '../../../models/Student';
 import { ProgramSkill, ProgramUaa } from '../../../models/Program';
 import { StudentAttendancePoint, StudentSummary } from '../../../models/StudentSummary';
+import { Teacher } from '../../../models/Teacher';
 import { StudentsService } from '../../../services/students.service';
+import { StudentCommunicationsComponent } from './student-communications.component';
 
 type StudentDetailViewModel = {
   student: Student | null;
   summary: StudentSummary | null;
+  teachers: Teacher[];
   isLoading: boolean;
   errorMessage: string;
   successMessage: string;
@@ -18,7 +21,7 @@ type StudentDetailViewModel = {
 
 @Component({
   selector: 'app-student-detail',
-  imports: [AsyncPipe, DatePipe, NgClass, RouterLink],
+  imports: [AsyncPipe, DatePipe, NgClass, RouterLink, StudentCommunicationsComponent],
   template: `
     <section class="space-y-6">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -38,6 +41,13 @@ type StudentDetailViewModel = {
         </div>
 
         <div class="flex flex-wrap gap-3">
+          <button
+            type="button"
+            (click)="openAssessment()"
+            class="inline-flex items-center justify-center rounded-2xl bg-sky-700 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-800"
+          >
+            Ouvrir le bilan
+          </button>
           <button
             type="button"
             (click)="goToEdit()"
@@ -143,10 +153,22 @@ type StudentDetailViewModel = {
 
                 @if (vm.student.teacher_names.length > 0) {
                   <div class="mt-4 flex flex-wrap gap-2">
-                    @for (teacherName of vm.student.teacher_names; track teacherName) {
-                      <span class="inline-flex items-center rounded-full bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200">
-                        {{ teacherName }}
-                      </span>
+                    @for (teacher of getLinkedTeachers(vm.student, vm.teachers); track teacher.id) {
+                      @if (teacher.email) {
+                        <button
+                          type="button"
+                          (click)="openTeacherEmail(teacher, vm.student)"
+                          class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-medium text-sky-700 ring-1 ring-sky-200 transition hover:bg-sky-50"
+                          [title]="'Écrire à ' + teacher.email"
+                        >
+                          {{ getTeacherName(teacher) }}
+                          <span aria-hidden="true">✉</span>
+                        </button>
+                      } @else {
+                        <span class="inline-flex items-center rounded-full bg-white px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200">
+                          {{ getTeacherName(teacher) }}
+                        </span>
+                      }
                     }
                   </div>
                 } @else {
@@ -233,14 +255,30 @@ type StudentDetailViewModel = {
                 <p class="text-sm font-medium tracking-[0.2em] text-slate-500 uppercase">Progression</p>
                 <h3 class="mt-2 text-2xl font-semibold text-slate-950">Programme de l’année</h3>
               </div>
-              @if (vm.summary.program; as program) {
-                <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800">
-                  {{ getProgramProgress(vm.summary) }} % travaillé
-                </span>
-              }
+              <div class="flex flex-wrap items-center gap-2">
+                @if (isProgramOpen && programSummary?.program) {
+                  <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                    {{ getProgramProgress(programSummary!) }} % travaillé
+                  </span>
+                }
+                <button
+                  type="button"
+                  (click)="toggleProgram(vm.student.enrollment_id)"
+                  [disabled]="isProgramLoading"
+                  class="rounded-xl bg-sky-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-800 disabled:opacity-50"
+                >
+                  {{ isProgramLoading ? 'Chargement...' : isProgramOpen ? 'Fermer le programme' : 'Ouvrir le programme' }}
+                </button>
+              </div>
             </div>
 
-            @if (vm.summary.program; as program) {
+            @if (programErrorMessage) {
+              <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {{ programErrorMessage }}
+              </div>
+            }
+
+            @if (isProgramOpen && programSummary?.program; as program) {
               <p class="mt-2 text-sm text-slate-600">
                 {{ program.program?.name || program.program?.subject?.name }} · {{ program.section.code }}
               </p>
@@ -253,17 +291,17 @@ type StudentDetailViewModel = {
                         <p class="mt-1 font-semibold text-slate-900">{{ uaa.name }}</p>
                       </div>
                       <span class="text-xs font-medium text-slate-500">
-                        {{ getUaaWorkedCount(vm.summary, uaa) }} / {{ getUaaItemCount(uaa) }}
+                        {{ getUaaWorkedCount(programSummary!, uaa) }} / {{ getUaaItemCount(uaa) }}
                       </span>
                     </div>
                     <div class="mt-4 grid gap-2 lg:grid-cols-2">
                       @for (skill of flattenUaaSkills(uaa); track skill.id) {
                         <div
                           class="rounded-xl px-3 py-2 text-sm"
-                          [class.bg-emerald-100]="vm.summary.workedSkillIds.includes(skill.id)"
-                          [class.text-emerald-900]="vm.summary.workedSkillIds.includes(skill.id)"
-                          [class.bg-slate-50]="!vm.summary.workedSkillIds.includes(skill.id)"
-                          [class.text-slate-500]="!vm.summary.workedSkillIds.includes(skill.id)"
+                          [class.bg-emerald-100]="programSummary!.workedSkillIds.includes(skill.id)"
+                          [class.text-emerald-900]="programSummary!.workedSkillIds.includes(skill.id)"
+                          [class.bg-slate-50]="!programSummary!.workedSkillIds.includes(skill.id)"
+                          [class.text-slate-500]="!programSummary!.workedSkillIds.includes(skill.id)"
                         >
                           {{ skill.description }}
                         </div>
@@ -271,10 +309,10 @@ type StudentDetailViewModel = {
                       @for (resource of uaa.resources; track resource.id) {
                         <div
                           class="rounded-xl px-3 py-2 text-sm"
-                          [class.bg-sky-100]="vm.summary.workedResourceIds.includes(resource.id)"
-                          [class.text-sky-900]="vm.summary.workedResourceIds.includes(resource.id)"
-                          [class.bg-slate-50]="!vm.summary.workedResourceIds.includes(resource.id)"
-                          [class.text-slate-500]="!vm.summary.workedResourceIds.includes(resource.id)"
+                          [class.bg-sky-100]="programSummary!.workedResourceIds.includes(resource.id)"
+                          [class.text-sky-900]="programSummary!.workedResourceIds.includes(resource.id)"
+                          [class.bg-slate-50]="!programSummary!.workedResourceIds.includes(resource.id)"
+                          [class.text-slate-500]="!programSummary!.workedResourceIds.includes(resource.id)"
                         >
                           {{ resource.description }}
                         </div>
@@ -283,10 +321,15 @@ type StudentDetailViewModel = {
                   </section>
                 }
               </div>
-            } @else {
+            } @else if (isProgramOpen && !isProgramLoading && programSummary && !programSummary.program) {
               <p class="mt-4 text-sm text-slate-600">Aucun programme attribué à cet élève.</p>
             }
           </article>
+
+          <app-student-communications
+            [enrollmentId]="vm.student.enrollment_id"
+            [teachers]="getLinkedTeachers(vm.student, vm.teachers)"
+          />
 
           <article class="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -355,11 +398,13 @@ export class StudentDetailComponent {
     switchMap(([enrollmentId, _refresh, successMessage, errorMessage]) =>
       combineLatest([
         this.studentsService.getStudentByEnrollmentId$(enrollmentId),
-        this.studentsService.getStudentSummary$(enrollmentId)
+        this.studentsService.getStudentSummary$(enrollmentId, false),
+        this.studentsService.getTeachers$()
       ]).pipe(
-        map(([student, summary]) => ({
+        map(([student, summary, teachers]) => ({
           student,
           summary,
+          teachers,
           isLoading: false,
           errorMessage,
           successMessage
@@ -367,6 +412,7 @@ export class StudentDetailComponent {
         startWith({
           student: null,
           summary: null,
+          teachers: [],
           isLoading: true,
           errorMessage,
           successMessage
@@ -375,6 +421,7 @@ export class StudentDetailComponent {
           of({
             student: null,
             summary: null,
+            teachers: [],
             isLoading: false,
             errorMessage:
               error instanceof Error ? error.message : 'Impossible de charger la fiche élève.',
@@ -385,8 +432,48 @@ export class StudentDetailComponent {
     )
   );
 
+  protected isProgramOpen = false;
+  protected isProgramLoading = false;
+  protected programSummary: StudentSummary | null = null;
+  protected programErrorMessage = '';
+
   protected getDysIconConfig(value: string) {
     return getDysIconConfig(value);
+  }
+
+  protected async toggleProgram(enrollmentId: string): Promise<void> {
+    this.isProgramOpen = !this.isProgramOpen;
+    if (!this.isProgramOpen || this.programSummary || this.isProgramLoading) return;
+
+    this.isProgramLoading = true;
+    this.programErrorMessage = '';
+    try {
+      this.programSummary = await firstValueFrom(
+        this.studentsService.getStudentSummary$(enrollmentId, true)
+      );
+    } catch (error) {
+      this.programErrorMessage =
+        error instanceof Error ? error.message : 'Impossible de charger le programme.';
+    } finally {
+      this.isProgramLoading = false;
+    }
+  }
+
+  protected getLinkedTeachers(student: Student, teachers: Teacher[]): Teacher[] {
+    return student.teacher_ids
+      .map((teacherId) => teachers.find((teacher) => teacher.id === teacherId))
+      .filter((teacher): teacher is Teacher => Boolean(teacher));
+  }
+
+  protected getTeacherName(teacher: Teacher): string {
+    return `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() || teacher.email || 'Professeur';
+  }
+
+  protected openTeacherEmail(teacher: Teacher, student: Student): void {
+    const email = teacher.email?.trim();
+    if (!email) return;
+    const subject = `Suivi de ${student.first_name} ${student.last_name}`;
+    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
   }
 
   protected flattenUaaSkills(uaa: ProgramUaa): ProgramSkill[] {
@@ -433,5 +520,14 @@ export class StudentDetailComponent {
     }
 
     void this.router.navigate(['/dashboard/students', enrollmentId, 'edit']);
+  }
+
+  protected openAssessment(): void {
+    const enrollmentId = this.route.snapshot.paramMap.get('id');
+    if (!enrollmentId) return;
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/dashboard/students', enrollmentId, 'assessment'])
+    );
+    window.open(url, '_blank', 'noopener,noreferrer,width=1200,height=900');
   }
 }

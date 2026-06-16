@@ -1,5 +1,7 @@
+import { DatePipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import {
   apiFetch,
   clearApiSession,
@@ -8,14 +10,17 @@ import {
 import { waitForAuthenticatedUser } from '../../helpers/auth-session';
 import { neonAuthClient } from '../../helpers/neon-auth.client';
 import { syncProfileWithApi } from '../../helpers/profile-sync';
+import { CommunicationReminder } from '../../models/StudentCommunication';
+import { StudentCommunicationsService } from '../../services/student-communications.service';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, DatePipe],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent {
   private readonly router = inject(Router);
+  private readonly communicationsService = inject(StudentCommunicationsService);
 
   protected isLoading = true;
   protected isSigningOut = false;
@@ -26,6 +31,8 @@ export class DashboardComponent {
   protected currentUserId = '';
   protected currentUserRole = 'unknown';
   protected endpointError = '';
+  protected dueReminders: CommunicationReminder[] = [];
+  protected showNotifications = false;
   protected get isOverviewPage(): boolean {
     const url = this.router.url.split('?')[0].split('#')[0];
     return url === '/dashboard' || url === '/dashboard/overview';
@@ -55,6 +62,15 @@ export class DashboardComponent {
     }
   }
 
+  protected async completeReminder(reminder: CommunicationReminder): Promise<void> {
+    try {
+      await firstValueFrom(this.communicationsService.updateReminder$(reminder.id, 'complete-reminder'));
+      await this.loadDueReminders();
+    } catch (error) {
+      this.endpointError = error instanceof Error ? error.message : 'Impossible de terminer le rappel.';
+    }
+  }
+
   private async loadUser(): Promise<void> {
     try {
       const { user } = await waitForAuthenticatedUser({
@@ -77,6 +93,7 @@ export class DashboardComponent {
 
         this.syncMessage = 'Profil synchronisé avec succès.';
         await this.loadBackendSession();
+        await this.loadDueReminders();
       }
     } catch (error) {
       this.errorMessage =
@@ -110,6 +127,14 @@ export class DashboardComponent {
       this.currentUserRole = role || this.currentUserRole;
     } catch (error) {
       this.endpointError = error instanceof Error ? error.message : 'Impossible de lire la session API.';
+    }
+  }
+
+  private async loadDueReminders(): Promise<void> {
+    try {
+      this.dueReminders = await firstValueFrom(this.communicationsService.getDueReminders$());
+    } catch {
+      this.dueReminders = [];
     }
   }
 }

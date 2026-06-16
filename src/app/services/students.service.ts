@@ -4,7 +4,12 @@ import { DysType } from '../models/DysType';
 import { School } from '../models/School';
 import { Section } from '../models/Section';
 import { Student } from '../models/Student';
-import { StudentSummary } from '../models/StudentSummary';
+import {
+  AssessmentItemType,
+  AssessmentStatus,
+  StudentAssessment,
+  StudentSummary
+} from '../models/StudentSummary';
 import { ProgramCatalogItem } from '../models/Program';
 import { Teacher } from '../models/Teacher';
 import { ApiResponse } from '../models/response';
@@ -118,9 +123,14 @@ export class StudentsService {
     );
   }
 
-  getStudentSummary$(enrollmentId: string): Observable<StudentSummary> {
+  getStudentSummary$(enrollmentId: string, includeProgram = true): Observable<StudentSummary> {
     return defer(() =>
-      from(apiFetch(`/student-summary?enrollmentId=${encodeURIComponent(enrollmentId)}`, { method: 'GET' }))
+      from(
+        apiFetch(
+          `/student-summary?enrollmentId=${encodeURIComponent(enrollmentId)}&includeProgram=${includeProgram}`,
+          { method: 'GET' }
+        )
+      )
     ).pipe(
       switchMap((response) =>
         from(response.json() as Promise<ApiResponse>).pipe(
@@ -129,6 +139,55 @@ export class StudentsService {
               return throwError(() => new Error(payload?.error || 'Impossible de charger la synthèse élève.'));
             }
             return from([payload.data as StudentSummary]);
+          })
+        )
+      )
+    );
+  }
+
+  getStudentAssessments$(enrollmentId: string, programId: string): Observable<StudentAssessment[]> {
+    return defer(() =>
+      from(
+        apiFetch(
+          `/student-assessment?enrollmentId=${encodeURIComponent(enrollmentId)}&programId=${encodeURIComponent(programId)}`,
+          { method: 'GET' }
+        )
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible de charger le bilan.'));
+            }
+            return from([(payload.data ?? []) as StudentAssessment[]]);
+          })
+        )
+      )
+    );
+  }
+
+  saveStudentAssessments$(
+    enrollmentId: string,
+    programId: string,
+    assessments: Array<{ itemType: AssessmentItemType; itemId: string; status: AssessmentStatus }>
+  ): Observable<{ count: number }> {
+    return defer(() =>
+      from(
+        apiFetch('/student-assessment', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enrollmentId, programId, assessments })
+        })
+      )
+    ).pipe(
+      switchMap((response) =>
+        from(response.json() as Promise<ApiResponse>).pipe(
+          switchMap((payload) => {
+            if (!response.ok) {
+              return throwError(() => new Error(payload?.error || 'Impossible d’enregistrer le bilan.'));
+            }
+            return from([payload.data as { count: number }]);
           })
         )
       )

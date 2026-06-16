@@ -8,7 +8,6 @@ import { ClassJournalComponent } from './pages/private/class-journal/class-journ
 import { PrivatePlaceholderComponent } from './pages/private/private-placeholder.component';
 import { SettingsComponent } from './pages/private/settings/settings.component';
 import { SettingsProgramPageComponent } from './pages/private/settings/settings-program-page.component';
-import { StudentDetailComponent } from './pages/private/students/student-detail.component';
 import { StudentFormComponent } from './pages/private/students/student-form.component';
 import { Students } from './pages/private/students/students';
 import { TeacherProfileComponent } from './pages/private/teacher-profile.component';
@@ -46,8 +45,18 @@ export const routes: Routes = [
         component: StudentFormComponent
       },
       {
+        path: 'students/:id/assessment',
+        loadComponent: () =>
+          import('./pages/private/students/student-assessment.component').then(
+            (module) => module.StudentAssessmentComponent
+          )
+      },
+      {
         path: 'students/:id',
-        component: StudentDetailComponent
+        loadComponent: () =>
+          import('./pages/private/students/student-detail.component').then(
+            (module) => module.StudentDetailComponent
+          )
       },
       {
         path: 'students/:id/edit',
