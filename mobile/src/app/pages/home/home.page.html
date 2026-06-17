@@ -1,0 +1,66 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>JDC Mobile</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" (click)="load()" aria-label="Actualiser">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="ion-padding page-stack">
+    @if (loading()) {
+      <div class="empty-state">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+    } @else {
+      <ion-card>
+        <ion-card-header>
+          <ion-card-subtitle>{{ today }}</ion-card-subtitle>
+          <ion-card-title>{{ user()?.name || user()?.email || 'Session JDC' }}</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="metric-grid">
+            <div class="metric">
+              <strong>{{ students().length }}</strong>
+              <span>eleves</span>
+            </div>
+            <div class="metric">
+              <strong>{{ entries().length }}</strong>
+              <span>creneaux</span>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+
+      @if (error()) {
+        <ion-card>
+          <ion-card-content>{{ error() }}</ion-card-content>
+        </ion-card>
+      }
+
+      <ion-list inset="true">
+        <ion-item routerLink="/students" detail="true">
+          <ion-label>
+            <h2>Eleves</h2>
+            <p>Recherche et consultation rapide</p>
+          </ion-label>
+          <ion-badge color="primary">{{ students().length }}</ion-badge>
+        </ion-item>
+        <ion-item routerLink="/journal" detail="true">
+          <ion-label>
+            <h2>Journal du jour</h2>
+            <p>Seances, presences et indicateurs</p>
+          </ion-label>
+          <ion-icon slot="end" name="arrow-forward-outline"></ion-icon>
+        </ion-item>
+      </ion-list>
+    }
+  </div>
+</ion-content>

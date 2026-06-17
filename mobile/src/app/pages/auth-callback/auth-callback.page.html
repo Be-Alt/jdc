@@ -1,0 +1,29 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Connexion</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="ion-padding page-stack login-shell">
+    <ion-card>
+      <ion-card-header>
+        <ion-card-subtitle>Google</ion-card-subtitle>
+        <ion-card-title>Retour de connexion</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (status()) {
+          <div class="empty-state">
+            <ion-spinner name="crescent"></ion-spinner>
+            <p>{{ status() }}</p>
+          </div>
+        }
+
+        @if (error()) {
+          <p class="auth-error">{{ error() }}</p>
+          <ion-button expand="block" color="primary" (click)="goToLogin()">Retour connexion</ion-button>
+        }
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>

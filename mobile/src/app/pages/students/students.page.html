@@ -1,0 +1,96 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Eleves</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" (click)="load()" aria-label="Actualiser">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-searchbar placeholder="Rechercher" animated="true" (ionInput)="search($event)"></ion-searchbar>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [value]="filter()" (ionChange)="setFilter($event)">
+      <ion-segment-button value="active">Actifs</ion-segment-button>
+      <ion-segment-button value="all">Tous</ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  @if (loading()) {
+    <div class="empty-state">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
+  } @else if (error()) {
+    <div class="ion-padding">
+      <ion-card>
+        <ion-card-content>{{ error() }}</ion-card-content>
+      </ion-card>
+    </div>
+  } @else if (filteredStudents().length === 0) {
+    <div class="empty-state">Aucun eleve trouve.</div>
+  } @else {
+    <ion-list inset="true">
+      @for (student of filteredStudents(); track student.enrollment_id) {
+        <ion-item button="true" detail="true" (click)="openStudent(student)">
+          <ion-label>
+            <h2>{{ student.first_name }} {{ student.last_name }}</h2>
+            <p>{{ student.section_name || 'Section non definie' }}</p>
+          </ion-label>
+          <ion-note slot="end">{{ student.status || 'actif' }}</ion-note>
+        </ion-item>
+      }
+    </ion-list>
+  }
+
+  <ion-modal [isOpen]="!!selected()" (didDismiss)="closeStudent()">
+    <ng-template>
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>{{ selected()?.first_name }} {{ selected()?.last_name }}</ion-title>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" (click)="closeStudent()" aria-label="Fermer">
+              <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="ion-padding">
+        @if (detailLoading()) {
+          <div class="empty-state">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+        } @else {
+          <div class="page-stack">
+            <ion-card>
+              <ion-card-header>
+                <ion-card-subtitle>{{ selected()?.section_name || 'Section non definie' }}</ion-card-subtitle>
+                <ion-card-title>{{ selected()?.program_name || 'Programme' }}</ion-card-title>
+              </ion-card-header>
+              <ion-card-content>
+                {{ selected()?.school_name || 'Ecole non definie' }}
+              </ion-card-content>
+            </ion-card>
+
+            <div class="metric-grid">
+              <div class="metric">
+                <strong>{{ summary()?.counters?.skills || 0 }}</strong>
+                <span>competences</span>
+              </div>
+              <div class="metric">
+                <strong>{{ summary()?.counters?.observations || 0 }}</strong>
+                <span>observations</span>
+              </div>
+            </div>
+          </div>
+        }
+      </ion-content>
+    </ng-template>
+  </ion-modal>
+</ion-content>

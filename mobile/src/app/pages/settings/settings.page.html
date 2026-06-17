@@ -1,0 +1,77 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Reglages</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="ion-padding page-stack">
+    <ion-card>
+      <ion-card-header>
+        <ion-card-subtitle>Connexion</ion-card-subtitle>
+        <ion-card-title>API JDC</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-list>
+          <ion-item>
+            <ion-input
+              label="URL API"
+              labelPlacement="stacked"
+              [value]="apiBaseUrl()"
+              (ionInput)="updateApiBaseUrl($event.detail.value)"
+            ></ion-input>
+          </ion-item>
+        </ion-list>
+        <ion-button expand="block" color="primary" (click)="saveApiBaseUrl()">Enregistrer</ion-button>
+        <ion-button expand="block" fill="outline" [href]="webAppUrl" target="_blank">Ouvrir l'app web</ion-button>
+        <ion-button expand="block" fill="clear" color="primary" (click)="signOut()">Se deconnecter</ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card>
+      <ion-card-header>
+        <ion-card-subtitle>Catalogue</ion-card-subtitle>
+        <ion-card-title>Observations</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (loading()) {
+          <div class="empty-state">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+        } @else if (observations().length === 0) {
+          <ion-textarea
+            label="Etat"
+            labelPlacement="stacked"
+            value="Le catalogue sera visible apres connexion a l'API."
+            readonly="true"
+            autoGrow="true"
+          ></ion-textarea>
+        } @else {
+          <ion-accordion-group>
+            @for (category of observations(); track category.id) {
+              <ion-accordion [value]="category.id">
+                <ion-item slot="header">
+                  <ion-label>{{ category.label }}</ion-label>
+                </ion-item>
+                <ion-list slot="content">
+                  @for (observation of category.observations || []; track observation.id) {
+                    <ion-item>
+                      <ion-label>{{ observation.label }}</ion-label>
+                    </ion-item>
+                  }
+                </ion-list>
+              </ion-accordion>
+            }
+          </ion-accordion-group>
+        }
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <ion-toast
+    [isOpen]="!!toastMessage()"
+    [message]="toastMessage()"
+    duration="2000"
+    (didDismiss)="toastMessage.set('')"
+  ></ion-toast>
+</ion-content>

@@ -1,0 +1,7 @@
+node_modules/
+.angular/
+www/
+out-tsc/
+dist/
+coverage/
+*.log

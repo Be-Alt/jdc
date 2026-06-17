@@ -1,0 +1,40 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Connexion</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="ion-padding page-stack login-shell">
+    <ion-card>
+      <ion-card-header>
+        <ion-card-subtitle>JDC Mobile</ion-card-subtitle>
+        <ion-card-title>Acceder au journal</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-list>
+          <ion-item>
+            <ion-icon slot="start" name="shield-checkmark-outline"></ion-icon>
+            <ion-label>
+              <h2>Compte autorise</h2>
+              <p>{{ domains }}</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+
+        @if (error()) {
+          <p class="auth-error">{{ error() }}</p>
+        }
+
+        <ion-button expand="block" color="primary" [disabled]="loading()" (click)="signIn()">
+          @if (loading()) {
+            <ion-spinner slot="start" name="crescent"></ion-spinner>
+          } @else {
+            <ion-icon slot="start" name="logo-google"></ion-icon>
+          }
+          Se connecter avec Google
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>

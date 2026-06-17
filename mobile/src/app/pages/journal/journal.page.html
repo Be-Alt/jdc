@@ -1,0 +1,98 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Journal</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" (click)="load()" aria-label="Actualiser">
+        <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-item lines="none">
+      <ion-label>Date</ion-label>
+      <ion-datetime-button datetime="journal-date"></ion-datetime-button>
+    </ion-item>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-modal [keepContentsMounted]="true">
+    <ng-template>
+      <ion-datetime
+        id="journal-date"
+        presentation="date"
+        [value]="date()"
+        (ionChange)="changeDate($event.detail.value)"
+      ></ion-datetime>
+    </ng-template>
+  </ion-modal>
+
+  <div class="ion-padding page-stack">
+    <div class="metric-grid">
+      <div class="metric">
+        <strong>{{ entries().length }}</strong>
+        <span>creneaux</span>
+      </div>
+      <div class="metric">
+        <strong>{{ studentCount() }}</strong>
+        <span>passages</span>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="empty-state">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+    } @else if (error()) {
+      <ion-card>
+        <ion-card-content>{{ error() }}</ion-card-content>
+      </ion-card>
+    } @else if (entries().length === 0) {
+      <div class="empty-state">Aucune entree pour cette date.</div>
+    } @else {
+      <ion-accordion-group>
+        @for (entry of entries(); track entry.slot_key) {
+          <ion-accordion [value]="entry.slot_key">
+            <ion-item slot="header">
+              <ion-label>
+                <h2>{{ entry.slot_key }}</h2>
+                <p>{{ entry.teacher_is_absent ? 'Professeur absent' : 'Cours assure' }}</p>
+              </ion-label>
+              <ion-badge color="primary">{{ entry.students?.length || 0 }}</ion-badge>
+            </ion-item>
+
+            <div slot="content">
+              <ion-list>
+                @for (student of entry.students || []; track student.student_enrollment_id) {
+                  <ion-item>
+                    <ion-checkbox slot="start" [checked]="student.attendance_status === 'present'"></ion-checkbox>
+                    <ion-label>
+                      <h2>{{ student.first_name }} {{ student.last_name }}</h2>
+                      <p>{{ student.comment || 'Aucun commentaire' }}</p>
+                    </ion-label>
+                    <ion-note slot="end">{{ student.attendance_status || 'present' }}</ion-note>
+                  </ion-item>
+                  <ion-item>
+                    <ion-label>Concentration</ion-label>
+                    <ion-range
+                      [value]="student.concentration_level || 0"
+                      min="0"
+                      max="5"
+                      snaps="true"
+                      ticks="true"
+                      disabled="true"
+                    ></ion-range>
+                  </ion-item>
+                }
+              </ion-list>
+            </div>
+          </ion-accordion>
+        }
+      </ion-accordion-group>
+    }
+  </div>
+</ion-content>

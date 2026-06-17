@@ -1,0 +1,67 @@
+@import "@ionic/angular/css/core.css";
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/display.css";
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/float-elements.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+html,
+body {
+  background: var(--ion-background-color);
+}
+
+ion-card {
+  border: 1px solid var(--ion-border-color);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+ion-button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.page-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric {
+  border: 1px solid var(--ion-border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.metric strong {
+  display: block;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.empty-state {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--ion-color-medium);
+}
+
+.login-shell {
+  min-height: 100%;
+  align-content: center;
+}
+
+.auth-error {
+  color: var(--ion-color-primary);
+  border: 1px solid var(--ion-border-color);
+  border-radius: 8px;
+  padding: 12px;
+}

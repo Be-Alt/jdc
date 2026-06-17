@@ -1,0 +1,40 @@
+{
+  "name": "jdc-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve --host 0.0.0.0 --port 4300",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "sync": "cap sync",
+    "ios": "cap open ios"
+  },
+  "dependencies": {
+    "@angular/common": "20.3.18",
+    "@angular/compiler": "20.3.18",
+    "@angular/core": "20.3.18",
+    "@angular/forms": "20.3.18",
+    "@angular/platform-browser": "20.3.18",
+    "@angular/router": "20.3.18",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/haptics": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/keyboard": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
+    "@neondatabase/neon-js": "^0.2.0-beta.1",
+    "@ionic/angular": "^8.0.0",
+    "ionicons": "^7.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.15.0"
+  },
+  "devDependencies": {
+    "@angular/build": "20.3.22",
+    "@angular/cli": "20.3.22",
+    "@angular/compiler-cli": "20.3.18",
+    "@capacitor/cli": "^7.0.0",
+    "typescript": "5.9.3"
+  }
+}

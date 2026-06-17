@@ -9,10 +9,18 @@ function normalizeOrigin(value: string): string {
 }
 
 function getConfiguredOrigins(): string[] {
-  return getEnv('CORS_ALLOW_ORIGIN')
+  const configuredOrigins = getEnv('CORS_ALLOW_ORIGIN')
     .split(',')
     .map((value) => normalizeOrigin(value))
     .filter(Boolean);
+
+  return Array.from(
+    new Set([
+      ...configuredOrigins,
+      'http://localhost:4300',
+      'http://127.0.0.1:4300'
+    ])
+  );
 }
 
 function getRequestOrigin(req?: RequestLike): string | null {
@@ -42,6 +50,7 @@ export function getCorsHeaders(methods = 'GET,OPTIONS', req?: RequestLike) {
     'Access-Control-Allow-Methods': methods,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Credentials': 'true',
+    'Cache-Control': 'no-store',
     Vary: 'Origin'
   };
 }

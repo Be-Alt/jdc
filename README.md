@@ -64,7 +64,7 @@ Variables minimales :
 ```env
 DATABASE_URL=postgresql://...
 DATABASE_AUTHENTICATED_URL=postgresql://...
-CORS_ALLOW_ORIGIN=http://localhost:4200,http://myjdctrack.be,https://myjdctrack.be
+CORS_ALLOW_ORIGIN=http://localhost:4200,http://localhost:4300,http://127.0.0.1:4300,http://myjdctrack.be,https://myjdctrack.be
 APP_JWT_SECRET=une-cle-longue-et-privee
 ```
 
