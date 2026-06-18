@@ -7,6 +7,7 @@ type WeeklyScheduleSlotInput = {
   dayOfWeek?: number;
   slotType?: 'course' | 'break' | 'lunch';
   label?: string;
+  subjectId?: string | null;
   startsAt?: string;
   endsAt?: string;
   position?: number;
@@ -36,6 +37,7 @@ type WeeklyScheduleSlotRow = {
   day_of_week: number;
   slot_type: 'course' | 'break' | 'lunch';
   label: string;
+  subject_id: string | null;
   starts_at: string;
   ends_at: string;
   position: number;
@@ -69,6 +71,7 @@ async function loadSchedule(sql: any, ownerId: string) {
       day_of_week,
       slot_type,
       label,
+      subject_id::text as subject_id,
       to_char(starts_at, 'HH24:MI') as starts_at,
       to_char(ends_at, 'HH24:MI') as ends_at,
       position,
@@ -81,7 +84,7 @@ async function loadSchedule(sql: any, ownerId: string) {
     left join public.weekly_schedule_slot_students wsss
       on wsss.slot_id = public.weekly_schedule_slots.id
     where config_id = ${config.id}::uuid
-    group by id, day_of_week, slot_type, label, starts_at, ends_at, position
+    group by id, day_of_week, slot_type, label, subject_id, starts_at, ends_at, position
     order by day_of_week asc, position asc, starts_at asc
   `;
 
@@ -132,6 +135,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
       dayOfWeek: Number(slot.dayOfWeek),
       slotType: slot.slotType,
       label: slot.label?.trim() || '',
+      subjectId: slot.subjectId?.trim() || null,
       startsAt: slot.startsAt?.trim() || '',
       endsAt: slot.endsAt?.trim() || '',
       position: slot.position ?? index,
@@ -163,6 +167,14 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         res.status(400).json({
           ok: false,
           error: 'Only course slots can be linked to students.'
+        });
+        return;
+      }
+
+      if (slot.slotType !== 'course' && slot.subjectId) {
+        res.status(400).json({
+          ok: false,
+          error: 'Only course slots can be linked to a subject.'
         });
         return;
       }
@@ -241,6 +253,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           day_of_week,
           slot_type,
           label,
+          subject_id,
           starts_at,
           ends_at,
           position
@@ -250,6 +263,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           ${slot.dayOfWeek},
           ${slot.slotType},
           ${slot.label},
+          ${slot.slotType === 'course' ? slot.subjectId : null}::uuid,
           ${slot.startsAt}::time,
           ${slot.endsAt}::time,
           ${slot.position}

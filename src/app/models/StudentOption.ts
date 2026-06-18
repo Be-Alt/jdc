@@ -10,4 +10,5 @@ export type StudentOption = {
   section_label: string | null;
   program_id: string | null;
   program_network_id: string | null;
+  program_subject_id: string | null;
 };

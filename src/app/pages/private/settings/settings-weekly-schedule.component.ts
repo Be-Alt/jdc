@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { BehaviorSubject, catchError, combineLatest, map, of, startWith, tap } from 'rxjs';
 import { StudentOption } from '../../../models/StudentOption';
+import { Subject } from '../../../models/Subject';
 import { WeeklyScheduleConfig } from '../../../models/WeeklySchedule';
 import { SettingsService } from '../../../services/settings.service';
 
@@ -11,6 +12,7 @@ type SettingsViewModel = {
   errorMessage: string;
   hasSchedule: boolean;
   studentOptions: StudentOption[];
+  subjects: Subject[];
 };
 
 type Weekday = {
@@ -182,7 +184,7 @@ type Weekday = {
 
                         @for (slot of getDaySlots(day.value); track trackSlot(slot, $index)) {
                           <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" [formGroup]="slot">
-                            <div class="grid gap-3 xl:grid-cols-[140px_1fr_150px_150px_auto]">
+                            <div class="grid gap-3 xl:grid-cols-[140px_1fr_180px_150px_150px_auto]">
                               <label class="space-y-2">
                                 <span class="text-xs font-medium tracking-[0.18em] text-slate-500 uppercase">Type</span>
                                 <select
@@ -203,6 +205,20 @@ type Weekday = {
                                   class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400"
                                   placeholder="Cours de math, Récréation, Temps de midi..."
                                 />
+                              </label>
+
+                              <label class="space-y-2">
+                                <span class="text-xs font-medium tracking-[0.18em] text-slate-500 uppercase">Cours donné</span>
+                                <select
+                                  formControlName="subjectId"
+                                  [disabled]="slot.get('slotType')?.value !== 'course'"
+                                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  <option value="">Aucune matière</option>
+                                  @for (subject of vm.subjects; track subject.id) {
+                                    <option [value]="subject.id">{{ subject.name }}</option>
+                                  }
+                                </select>
                               </label>
 
                               <label class="space-y-2">
@@ -346,13 +362,23 @@ export class SettingsWeeklyScheduleComponent {
         return of([] as StudentOption[]);
       })
     ),
+    this.settingsService.getSubjects$().pipe(
+      startWith([] as Subject[]),
+      catchError((error: unknown) => {
+        this.errorMessageSubject.next(
+          error instanceof Error ? error.message : 'Impossible de charger les matières.'
+        );
+        return of([] as Subject[]);
+      })
+    ),
     this.errorMessageSubject.asObservable()
   ]).pipe(
-    map(([schedule, studentOptions, errorMessage]) => ({
+    map(([schedule, studentOptions, subjects, errorMessage]) => ({
       isLoading: schedule === undefined,
       errorMessage,
       hasSchedule: Boolean(schedule),
-      studentOptions
+      studentOptions,
+      subjects
     }) satisfies SettingsViewModel)
   );
 
@@ -378,6 +404,7 @@ export class SettingsWeeklyScheduleComponent {
         startsAt: [defaults.startsAt, Validators.required],
         endsAt: [defaults.endsAt, Validators.required],
         position: [this.slotsArray.length],
+        subjectId: [''],
         studentEnrollmentIds: [[] as string[]]
       })
     );
@@ -462,6 +489,10 @@ export class SettingsWeeklyScheduleComponent {
         startsAt: String(control.get('startsAt')?.value ?? ''),
         endsAt: String(control.get('endsAt')?.value ?? ''),
         position: index,
+        subjectId:
+          control.get('slotType')?.value === 'course'
+            ? String(control.get('subjectId')?.value ?? '') || null
+            : null,
         studentEnrollmentIds: this.getSelectedStudentIds(control as FormGroup)
       }))
     }).subscribe({
@@ -512,6 +543,7 @@ export class SettingsWeeklyScheduleComponent {
           startsAt: [slot.starts_at, Validators.required],
           endsAt: [slot.ends_at, Validators.required],
           position: [slot.position],
+          subjectId: [slot.subject_id ?? ''],
           studentEnrollmentIds: [slot.student_enrollment_ids ?? []]
         })
       );

@@ -25,6 +25,43 @@ ion-button {
   letter-spacing: 0;
 }
 
+ion-datetime-button::part(native) {
+  background: var(--ion-color-light);
+  color: var(--ion-text-color);
+  border-radius: 14px;
+}
+
+ion-datetime {
+  --background: var(--ion-card-background);
+  --background-rgb: var(--ion-background-color-rgb);
+  color: var(--ion-text-color);
+}
+
+ion-datetime::part(calendar-day) {
+  color: var(--ion-text-color);
+}
+
+ion-datetime::part(calendar-day today) {
+  color: var(--ion-color-primary);
+}
+
+ion-datetime::part(calendar-day active) {
+  color: var(--ion-color-primary-contrast);
+}
+
+@media (prefers-color-scheme: dark) {
+  ion-datetime-button::part(native) {
+    background: #171717;
+    color: #ffffff;
+  }
+
+  ion-datetime {
+    --background: #0f0f0f;
+    --background-rgb: 15, 15, 15;
+    color: #ffffff;
+  }
+}
+
 .page-stack {
   display: grid;
   gap: 12px;
@@ -52,6 +89,88 @@ ion-button {
   padding: 32px 16px;
   text-align: center;
   color: var(--ion-color-medium);
+}
+
+.save-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+}
+
+.teacher-absent-slot,
+.teacher-absent-summary {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(var(--ion-color-medium-rgb), 0.12) 0,
+    rgba(var(--ion-color-medium-rgb), 0.12) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.validated-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.non-course-slot {
+  --background: rgba(var(--ion-color-medium-rgb), 0.08);
+  --min-height: 48px;
+}
+
+.non-course-slot h2 {
+  color: var(--ion-color-medium);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.teacher-absent-panel,
+.student-summary {
+  border: 1px solid var(--ion-border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ion-background-color);
+}
+
+.teacher-absent-panel,
+.student-summary > div,
+.summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.teacher-absent-panel span,
+.student-summary span,
+.summary-chips span {
+  color: var(--ion-color-medium);
+  font-size: 0.82rem;
+}
+
+.student-summary p {
+  margin: 4px 0 0;
+  color: var(--ion-color-medium);
+  font-size: 0.88rem;
+}
+
+.seen-work-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--ion-color-medium);
+  font-size: 0.84rem;
+}
+
+.seen-work-list li + li {
+  margin-top: 3px;
+}
+
+.student-summary.absent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .login-shell {

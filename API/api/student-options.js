@@ -17,7 +17,8 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
         sec.code as section_code,
         sec.label as section_label,
         prog.id::text as program_id,
-        prog.network_id::text as program_network_id
+        prog.network_id::text as program_network_id,
+        prog.subject_id::text as program_subject_id
       from public.student_enrollments se
       inner join public.persons p
         on p.id = se.person_id

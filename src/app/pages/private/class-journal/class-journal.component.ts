@@ -393,7 +393,7 @@ type SlotProgramState = {
                                         </p>
 
                                         <div class="mt-4 grid max-h-96 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
-                                          @for (program of vm.programs; track program.id) {
+                                          @for (program of getCompatibleProgramsForSlot(slot, student, vm.programs); track program.id) {
                                             <button
                                               type="button"
                                               (click)="selectAlternativeProgram(slot, student.enrollment_id, program)"
@@ -815,6 +815,21 @@ export class ClassJournalComponent implements OnInit {
       .filter((student): student is StudentOption => Boolean(student));
   }
 
+  protected getCompatibleProgramsForSlot(
+    slot: WeeklyScheduleSlot,
+    student: StudentOption,
+    programs: ProgramCatalogItem[]
+  ): ProgramCatalogItem[] {
+    if (slot.subject_id) {
+      return programs.filter((program) => program.subject_id === slot.subject_id);
+    }
+
+    return programs.filter(
+      (program) =>
+        (!student.section_id || program.section_id === student.section_id)
+    );
+  }
+
   protected getHolidayForSelectedDate(holidays: SchoolHoliday[]): SchoolHoliday | null {
     const selectedIsoDate = this.toIsoDate(this.selectedDate);
     return holidays.find((holiday) => holiday.starts_on <= selectedIsoDate && holiday.ends_on >= selectedIsoDate) ?? null;
@@ -848,7 +863,8 @@ export class ClassJournalComponent implements OnInit {
       studentEnrollmentId,
       program.section_id,
       program.network_id,
-      program.id
+      program.id,
+      program.subject_id
     );
   }
 
@@ -924,6 +940,7 @@ export class ClassJournalComponent implements OnInit {
     sectionId: string,
     preferredNetworkId = '',
     preferredProgramId = '',
+    subjectId = '',
     options?: { preserveSelections?: boolean }
   ): Promise<void> {
     const stateKey = `${slotKey}-${studentEnrollmentId}`;
@@ -936,7 +953,9 @@ export class ClassJournalComponent implements OnInit {
     };
 
     try {
-      const networks = await firstValueFrom(this.settingsService.getProgramNetworksBySectionId$(sectionId));
+      const networks = await firstValueFrom(
+        this.settingsService.getProgramNetworksBySectionId$(sectionId, subjectId || null)
+      );
       const network = networks.find((item) => item.id === preferredNetworkId) ?? networks[0];
 
       if (!network) {
@@ -956,7 +975,7 @@ export class ClassJournalComponent implements OnInit {
         this.settingsService.getProgramBySectionId$(
           sectionId,
           network.id,
-          null,
+          subjectId || null,
           preferredProgramId || null
         )
       );
@@ -989,18 +1008,29 @@ export class ClassJournalComponent implements OnInit {
     const vm = await firstValueFrom(this.vm$.pipe(filter((value) => !value.isLoading)));
     const student = vm.students.find((candidate) => candidate.enrollment_id === studentEnrollmentId);
 
-    if (!student?.section_id) {
+    if (!student) {
       return;
     }
 
     const slotKey = this.getSlotKey(slot);
-    this.journalService.setStudentSection(slotKey, studentEnrollmentId, student.section_id);
+    const scheduledProgram = this.getScheduledProgramForStudent(slot, student, vm.programs);
+
+    if (slot.subject_id && !scheduledProgram) {
+      this.setMissingScheduledProgramState(slot, studentEnrollmentId, vm.programs);
+      return;
+    }
+
+    const sectionId = scheduledProgram?.section_id ?? student.section_id;
+    if (!sectionId) return;
+
+    this.journalService.setStudentSection(slotKey, studentEnrollmentId, sectionId);
     await this.selectProgramForStudent(
       slotKey,
       studentEnrollmentId,
-      student.section_id,
-      student.program_network_id ?? '',
-      student.program_id ?? ''
+      sectionId,
+      slot.subject_id ? scheduledProgram?.network_id ?? '' : student.program_network_id ?? '',
+      slot.subject_id ? scheduledProgram?.id ?? '' : student.program_id ?? '',
+      slot.subject_id ?? ''
     );
   }
 
@@ -1438,7 +1468,7 @@ export class ClassJournalComponent implements OnInit {
     }
 
     const vm = await firstValueFrom(this.vm$.pipe(filter((value) => !value.isLoading)));
-    await this.initializeDefaultProgramsForSelectedDate(vm.schedule, vm.students);
+    await this.initializeDefaultProgramsForSelectedDate(vm.schedule, vm.students, vm.programs);
   }
 
   private async restoreProgramsForEntries(entries: ClassJournalEntry[]): Promise<void> {
@@ -1453,6 +1483,7 @@ export class ClassJournalComponent implements OnInit {
               student.section_id as string,
               student.network_id ?? '',
               student.program_id ?? '',
+              '',
               { preserveSelections: true }
             );
           })
@@ -1462,7 +1493,8 @@ export class ClassJournalComponent implements OnInit {
 
   private async initializeDefaultProgramsForSelectedDate(
     schedule: WeeklyScheduleConfig | null,
-    students: StudentOption[]
+    students: StudentOption[],
+    programs: ProgramCatalogItem[]
   ): Promise<void> {
     if (!schedule) {
       return;
@@ -1472,7 +1504,6 @@ export class ClassJournalComponent implements OnInit {
       .filter((slot) => slot.slot_type === 'course')
       .flatMap((slot) =>
         this.getStudentsForSlot(slot, students)
-          .filter((student) => student.section_id)
           .map((student) => {
             const stateKey = this.getStudentProgramKey(slot, student.enrollment_id);
 
@@ -1481,10 +1512,26 @@ export class ClassJournalComponent implements OnInit {
             }
 
             const studentDraft = this.journalService.getStudentDraft(this.getSlotKey(slot), student.enrollment_id);
-            const sectionId = studentDraft.sectionId || student.section_id;
-            const hasSavedStudentChoice = Boolean(studentDraft.sectionId || studentDraft.networkId);
-            const networkId = studentDraft.networkId || student.program_network_id || '';
-            const programId = hasSavedStudentChoice ? '' : student.program_id || '';
+            const hasSavedStudentChoice = Boolean(
+              studentDraft.programId || studentDraft.networkId
+            );
+            const scheduledProgram = this.getScheduledProgramForStudent(slot, student, programs);
+            const sectionId = slot.subject_id
+              ? scheduledProgram?.section_id ?? null
+              : studentDraft.sectionId || student.section_id;
+            const networkId = slot.subject_id
+              ? scheduledProgram?.network_id ?? ''
+              : studentDraft.networkId || student.program_network_id || '';
+            const programId = slot.subject_id
+              ? scheduledProgram?.id ?? ''
+              : hasSavedStudentChoice
+                ? studentDraft.programId
+                : student.program_id || '';
+
+            if (slot.subject_id && !scheduledProgram) {
+              this.setMissingScheduledProgramState(slot, student.enrollment_id, programs);
+              return null;
+            }
 
             if (!sectionId) {
               return null;
@@ -1496,6 +1543,7 @@ export class ClassJournalComponent implements OnInit {
               sectionId,
               networkId,
               programId,
+              slot.subject_id ?? '',
               { preserveSelections: true }
             );
           })
@@ -1503,6 +1551,47 @@ export class ClassJournalComponent implements OnInit {
       .filter((task): task is Promise<void> => Boolean(task));
 
     await Promise.all(tasks);
+  }
+
+  private getScheduledProgramForStudent(
+    slot: WeeklyScheduleSlot,
+    student: StudentOption,
+    programs: ProgramCatalogItem[]
+  ): ProgramCatalogItem | null {
+    if (!slot.subject_id) {
+      return null;
+    }
+
+    const subjectPrograms = programs.filter((program) => program.subject_id === slot.subject_id);
+    const assignedProgram = subjectPrograms.find(
+      (program) => program.id === student.program_id
+    );
+
+    if (assignedProgram) {
+      return assignedProgram;
+    }
+
+    return subjectPrograms.length === 1 ? subjectPrograms[0] : null;
+  }
+
+  private setMissingScheduledProgramState(
+    slot: WeeklyScheduleSlot,
+    studentEnrollmentId: string,
+    programs: ProgramCatalogItem[]
+  ): void {
+    const subjectProgramCount = programs.filter(
+      (program) => program.subject_id === slot.subject_id
+    ).length;
+    const errorMessage = subjectProgramCount > 1
+      ? 'Plusieurs programmes existent pour cette matière. Lie un programme à l’élève ou choisis-en un manuellement.'
+      : 'Aucun programme n’est disponible pour la matière de ce cours.';
+
+    this.studentProgramStates[this.getStudentProgramKey(slot, studentEnrollmentId)] = {
+      isLoading: false,
+      errorMessage,
+      networks: [],
+      program: null
+    };
   }
 
   private formatSavedTime(date: Date): string {

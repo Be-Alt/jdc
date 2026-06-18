@@ -3,6 +3,7 @@ export type WeeklyScheduleSlot = {
   day_of_week: number;
   slot_type: 'course' | 'break' | 'lunch';
   label: string;
+  subject_id: string | null;
   starts_at: string;
   ends_at: string;
   position: number;

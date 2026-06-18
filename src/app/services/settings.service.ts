@@ -21,6 +21,7 @@ type WeeklySchedulePayload = {
     dayOfWeek: number;
     slotType: 'course' | 'break' | 'lunch';
     label: string;
+    subjectId?: string | null;
     startsAt: string;
     endsAt: string;
     position: number;

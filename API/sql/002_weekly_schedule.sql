@@ -20,6 +20,7 @@ create table if not exists public.weekly_schedule_slots (
   day_of_week integer not null check (day_of_week between 1 and 7),
   slot_type text not null check (slot_type in ('course', 'break', 'lunch')),
   label text not null,
+  subject_id uuid references public.subjects(id) on delete set null,
   starts_at time not null,
   ends_at time not null,
   position integer not null default 0,
@@ -52,3 +53,6 @@ on public.weekly_schedule_configs(organization_id);
 
 create index if not exists idx_weekly_schedule_slots_config
 on public.weekly_schedule_slots(config_id, day_of_week, position);
+
+create index if not exists idx_weekly_schedule_slots_subject
+on public.weekly_schedule_slots(subject_id);
