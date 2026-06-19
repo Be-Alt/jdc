@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -9,13 +9,16 @@ type ProgramCatalogRow = {
   hours: number;
   subject_id: string;
   subject_name: string;
-  section_id: string;
-  section_code: string;
-  section_label: string;
+  section_id: string | null;
+  section_code: string | null;
+  section_label: string | null;
   network_id: string;
   network_code: string;
   network_name: string;
   uaa_count: number;
+  owner_id: string | null;
+  is_shared: boolean;
+  can_edit: boolean;
 };
 
 function getQueryParam(url: string | undefined, name: string): string | undefined {
@@ -27,7 +30,7 @@ function getQueryParam(url: string | undefined, name: string): string | undefine
   return query || undefined;
 }
 
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('GET,OPTIONS', 'programs.read', async ({ req, res, auth }) => {
   try {
     const requestUrl = (req as { url?: string }).url;
     const subjectId = getQueryParam(requestUrl, 'subjectId') ?? null;
@@ -47,11 +50,17 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         net.id::text as network_id,
         net.code as network_code,
         net.name as network_name,
-        count(u.id)::int as uaa_count
+        count(u.id)::int as uaa_count,
+        p.owner_id::text as owner_id,
+        p.is_shared,
+        (
+          p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text in ('super_admin', 'program_admin')
+        ) as can_edit
       from public.programs p
       inner join public.subjects sub
         on sub.id = p.subject_id
-      inner join public.sections sec
+      left join public.sections sec
         on sec.id = p.section_id
       inner join public.networks net
         on net.id = p.network_id
@@ -59,6 +68,11 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         on u.program_id = p.id
       where (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
         and (${excludeProgramId}::uuid is null or p.id <> ${excludeProgramId}::uuid)
+        and (
+          p.is_shared = true
+          or p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text = 'super_admin'
+        )
       group by
         p.id,
         p.name,
@@ -70,10 +84,12 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         sec.label,
         net.id,
         net.code,
-        net.name
+        net.name,
+        p.owner_id,
+        p.is_shared
       order by
         sub.name asc,
-        sec.level asc,
+        sec.level asc nulls first,
         sec.code asc,
         net.code asc,
         p.hours asc

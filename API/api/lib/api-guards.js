@@ -1,6 +1,7 @@
 import { getBearerToken, getCookieHeader } from './auth.js';
 import { getAccessTokenFromCookieHeader, getRefreshTokenFromCookieHeader, refreshAppSession, verifyAppJwt } from './app-jwt.js';
 import { applyCors, getCorsHeaders } from './cors.js';
+import { hasPermission } from './permissions.js';
 import { enforceRateLimit } from './rate-limit.js';
 function handleMethodAndCors(req, res, methods) {
     if (req.method === 'OPTIONS') {
@@ -108,5 +109,30 @@ export function withRoleProtectedEndpoint(methods, allowedRoles, handler, option
             return;
         }
         await handler({ req, res, auth });
+    }, options);
+}
+export function withPermissionEndpoint(methods, permission, handler, options) {
+    return withAuthenticatedEndpoint(methods, async (context) => {
+        if (!hasPermission(context.auth.role, permission)) {
+            context.res.status(403).json({
+                ok: false,
+                error: `Permission ${permission} is required.`
+            });
+            return;
+        }
+        await handler(context);
+    }, options);
+}
+export function withMethodPermissions(methods, permissions, handler, options) {
+    return withAuthenticatedEndpoint(methods, async (context) => {
+        const permission = permissions[context.req.method ?? 'GET'];
+        if (permission && !hasPermission(context.auth.role, permission)) {
+            context.res.status(403).json({
+                ok: false,
+                error: `Permission ${permission} is required.`
+            });
+            return;
+        }
+        await handler(context);
     }, options);
 }

@@ -3,7 +3,6 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import {
-  apiFetch,
   clearApiSession,
   hasConfiguredApiBaseUrl
 } from '../../helpers/api-session';
@@ -12,6 +11,7 @@ import { neonAuthClient } from '../../helpers/neon-auth.client';
 import { syncProfileWithApi } from '../../helpers/profile-sync';
 import { CommunicationReminder } from '../../models/StudentCommunication';
 import { StudentCommunicationsService } from '../../services/student-communications.service';
+import { CurrentUserService } from '../../services/current-user.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -21,6 +21,7 @@ import { StudentCommunicationsService } from '../../services/student-communicati
 export class DashboardComponent {
   private readonly router = inject(Router);
   private readonly communicationsService = inject(StudentCommunicationsService);
+  protected readonly currentUserService = inject(CurrentUserService);
 
   protected isLoading = true;
   protected isSigningOut = false;
@@ -110,21 +111,8 @@ export class DashboardComponent {
     }
 
     try {
-      const response = await apiFetch('/me', {
-        method: 'GET'
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | { user?: { role?: string } }
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload && 'error' in payload ? payload.error || 'Session API invalide.' : 'Session API invalide.');
-      }
-
-      const role = payload && 'user' in payload ? payload.user?.role : undefined;
-      this.currentUserRole = role || this.currentUserRole;
+      const user = await this.currentUserService.load();
+      this.currentUserRole = user.role;
     } catch (error) {
       this.endpointError = error instanceof Error ? error.message : 'Impossible de lire la session API.';
     }

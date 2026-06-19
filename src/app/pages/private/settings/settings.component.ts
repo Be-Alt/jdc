@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { SettingsDysComponent } from './settings-dys.component';
 import { SettingsNetworksComponent } from './settings-networks.component';
 import { SettingsProgramComponent } from './settings-program.component';
@@ -8,6 +8,7 @@ import { SettingsSectionsComponent } from './settings-sections.component';
 import { SettingsSubjectsComponent } from './settings-subjects.component';
 import { SettingsTeachersComponent } from './settings-teachers.component';
 import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.component';
+import { CurrentUserService } from '../../../services/current-user.service';
 
 @Component({
   selector: 'app-settings',
@@ -35,16 +36,24 @@ import { SettingsWeeklyScheduleComponent } from './settings-weekly-schedule.comp
         </div>
       </div>
 
-      <app-settings-weekly-schedule />
-      <app-settings-school-holidays />
-      <app-settings-networks />
-      <app-settings-sections />
-      <app-settings-subjects />
-      <app-settings-dys />
-      <app-settings-schools />
-      <app-settings-teachers />
-      <app-settings-program />
+      @if (currentUserService.has('schedules.manage')) {
+        <app-settings-weekly-schedule />
+      }
+      @if (currentUserService.has('directory.manage')) {
+        <app-settings-school-holidays />
+        <app-settings-dys />
+        <app-settings-schools />
+        <app-settings-teachers />
+      }
+      @if (currentUserService.has('programs.manage')) {
+        <app-settings-networks />
+        <app-settings-sections />
+        <app-settings-subjects />
+        <app-settings-program />
+      }
     </section>
   `
 })
-export class SettingsComponent {}
+export class SettingsComponent {
+  protected readonly currentUserService = inject(CurrentUserService);
+}

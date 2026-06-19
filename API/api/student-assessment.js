@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 function getQueryParam(url, name) {
@@ -16,7 +16,7 @@ async function enrollmentBelongsToOwner(sql, ownerId, enrollmentId, programId) {
   `;
     return rows.length > 0;
 }
-export default withAuthenticatedEndpoint('GET,PUT,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', async ({ req, res, auth }) => {
     try {
         const sql = neon(getEnv('DATABASE_URL'));
         if (req.method === 'GET') {

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getEnv, getOptionalEnv } from './env.js';
+import { normalizeAppRole } from './auth.js';
 const ACCESS_COOKIE_NAME = 'app_access';
 const REFRESH_COOKIE_NAME = 'app_refresh';
 const ACCESS_TTL_SECONDS = 60 * 15;
@@ -136,7 +137,7 @@ export function verifyAppJwt(token, expectedType = 'access') {
         userId: payload.sub,
         email: payload.email,
         name: payload.name,
-        role: payload.role,
+        role: normalizeAppRole(payload.role),
         tokenType: payload.type
     };
 }

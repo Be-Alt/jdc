@@ -1,4 +1,5 @@
 import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { getPermissions } from './lib/permissions.js';
 
 export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) => {
   res.status(200).json({
@@ -7,7 +8,8 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
       userId: auth.userId,
       email: auth.email,
       name: auth.name,
-      role: auth.role
+      role: auth.role,
+      permissions: getPermissions(auth.role)
     }
   });
 }, {

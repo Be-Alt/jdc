@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 function getQueryParam(url, name) {
@@ -9,7 +9,7 @@ function getQueryParam(url, name) {
     const query = new URL(url, 'http://localhost').searchParams.get(name)?.trim();
     return query || undefined;
 }
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ req, res, auth }) => {
     try {
         const enrollmentId = getQueryParam(req.url, 'enrollmentId');
         if (!enrollmentId) {

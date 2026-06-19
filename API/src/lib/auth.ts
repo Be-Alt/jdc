@@ -7,7 +7,14 @@ export type AuthenticatedUser = {
   name: string | null;
 };
 
-export type AppRole = 'admin' | 'user' | 'student';
+export type AppRole = 'super_admin' | 'program_admin' | 'direction_admin' | 'teacher';
+
+export function normalizeAppRole(value: string): AppRole {
+  if (value === 'super_admin' || value === 'program_admin' || value === 'direction_admin' || value === 'teacher') {
+    return value;
+  }
+  return value === 'admin' ? 'super_admin' : 'teacher';
+}
 
 export type ProfileRecord = AuthenticatedUser & {
   role: AppRole;
@@ -77,7 +84,7 @@ export async function getProfileRecord(user: AuthenticatedUser): Promise<Profile
     user_id: string;
     email: string;
     full_name: string | null;
-    role: AppRole;
+    role: string;
   }>;
 
   if (!row) {
@@ -88,7 +95,7 @@ export async function getProfileRecord(user: AuthenticatedUser): Promise<Profile
     userId: row.user_id,
     email: row.email,
     name: row.full_name,
-    role: row.role
+    role: normalizeAppRole(row.role)
   };
 }
 

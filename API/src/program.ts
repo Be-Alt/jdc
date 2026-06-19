@@ -1,14 +1,16 @@
 import { neon } from '@neondatabase/serverless';
+import { type AppRole } from './lib/auth.js';
 import { withAuthenticatedEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
+import { hasPermission } from './lib/permissions.js';
 
 type ProgramRow = {
-  section_id: string;
-  section_code: string;
-  section_level: number;
-  section_type: string;
-  section_label: string;
+  section_id: string | null;
+  section_code: string | null;
+  section_level: number | null;
+  section_type: string | null;
+  section_label: string | null;
   program_id: string | null;
   program_name: string | null;
   program_hours: number | null;
@@ -33,6 +35,9 @@ type ProgramRow = {
   competence_description: string | null;
   strategy_id: string | null;
   strategy_description: string | null;
+  owner_id: string | null;
+  is_shared: boolean;
+  can_edit: boolean;
 };
 
 type ProgramSubject = {
@@ -55,6 +60,9 @@ type ProgramSummary = {
   validTo: string | null;
   subject: ProgramSubject | null;
   network: ProgramNetwork | null;
+  ownerId: string | null;
+  isShared: boolean;
+  canEdit: boolean;
 };
 
 type ProgramResource = {
@@ -90,7 +98,7 @@ type SectionProgram = {
     level: number;
     type: string;
     label: string;
-  };
+  } | null;
   program: ProgramSummary | null;
   uaas: ProgramUaa[];
 };
@@ -114,6 +122,7 @@ type ProgramMutationInput = {
   validTo?: string | null;
   targetProgramId?: string | null;
   uaaIds?: string[];
+  isShared?: boolean;
 };
 
 function getQueryParam(url: string | undefined, name: string): string | undefined {
@@ -218,13 +227,16 @@ function transformProgramRows(rows: ProgramRow[]): SectionProgram {
   }
 
   return {
-    section: {
-      id: firstRow.section_id,
-      code: firstRow.section_code,
-      level: firstRow.section_level,
-      type: firstRow.section_type,
-      label: firstRow.section_label
-    },
+    section: firstRow.section_id && firstRow.section_code && firstRow.section_level !== null &&
+      firstRow.section_type && firstRow.section_label
+      ? {
+          id: firstRow.section_id,
+          code: firstRow.section_code,
+          level: firstRow.section_level,
+          type: firstRow.section_type,
+          label: firstRow.section_label
+        }
+      : null,
     program: firstRow.program_id && firstRow.program_hours !== null
       ? {
           id: firstRow.program_id,
@@ -233,7 +245,10 @@ function transformProgramRows(rows: ProgramRow[]): SectionProgram {
           validFrom: firstRow.program_valid_from,
           validTo: firstRow.program_valid_to,
           subject,
-          network
+          network,
+          ownerId: firstRow.owner_id,
+          isShared: firstRow.is_shared,
+          canEdit: firstRow.can_edit
         }
       : null,
     uaas: Array.from(uaaMap.values()).map((uaa) => ({
@@ -318,6 +333,82 @@ async function cloneUaa(sql: any, sourceUaaId: string, targetProgramId: string):
   return insertedUaa.id;
 }
 
+async function resolveMutationProgramId(
+  sql: any,
+  action: string,
+  payload: ProgramMutationInput
+): Promise<string | null> {
+  if (action === 'update-program' || action === 'create-uaa') {
+    return payload.programId?.trim() || null;
+  }
+
+  if (action === 'clone-uaas') {
+    return payload.targetProgramId?.trim() || null;
+  }
+
+  if (action === 'create-resource' || action === 'create-competence' || action === 'create-strategy' || action === 'create-skill') {
+    const uaaId = payload.uaaId?.trim();
+    if (!uaaId) return null;
+    const rows = await sql`
+      select program_id::text as program_id
+      from public.uaa
+      where id = ${uaaId}::uuid
+      limit 1
+    `;
+    return (rows as Array<{ program_id: string }>)[0]?.program_id ?? null;
+  }
+
+  if (action === 'delete-item' || action === 'update-item') {
+    const itemId = payload.itemId?.trim();
+    const itemType = payload.itemType?.trim();
+    if (!itemId || !itemType) return null;
+
+    const rows =
+      itemType === 'resource'
+        ? await sql`select u.program_id::text as program_id from public.resources i join public.uaa u on u.id = i.uaa_id where i.id = ${itemId}::uuid limit 1`
+        : itemType === 'competence'
+          ? await sql`select u.program_id::text as program_id from public.uaa_competences i join public.uaa u on u.id = i.uaa_id where i.id = ${itemId}::uuid limit 1`
+          : itemType === 'strategy'
+            ? await sql`select u.program_id::text as program_id from public.uaa_strategies i join public.uaa u on u.id = i.uaa_id where i.id = ${itemId}::uuid limit 1`
+            : itemType === 'skill'
+              ? await sql`select u.program_id::text as program_id from public.skills i join public.uaa u on u.id = i.uaa_id where i.id = ${itemId}::uuid limit 1`
+              : [];
+    return (rows as Array<{ program_id: string }>)[0]?.program_id ?? null;
+  }
+
+  return null;
+}
+
+async function assertProgramEditable(
+  sql: any,
+  userId: string,
+  role: AppRole,
+  programId: string
+): Promise<void> {
+  const rows = await sql`
+    select owner_id::text as owner_id, is_shared
+    from public.programs
+    where id = ${programId}::uuid
+      and (
+        is_shared = true
+        or owner_id = ${userId}::uuid
+        or ${role}::text = 'super_admin'
+      )
+    limit 1
+  `;
+  const program = (rows as Array<{ owner_id: string | null; is_shared: boolean }>)[0];
+  if (!program) throw new Error('Programme introuvable.');
+
+  const canEdit =
+    role === 'super_admin' ||
+    (program.is_shared && role === 'program_admin') ||
+    (!program.is_shared && program.owner_id === userId);
+
+  if (!canEdit) {
+    throw new Error('Ce programme est accessible en lecture seule.');
+  }
+}
+
 export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, auth }) => {
   try {
     const sql = neon(getEnv('DATABASE_URL'));
@@ -334,11 +425,27 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         const name = payload.name?.trim() || null;
         const validFrom = payload.validFrom?.trim() || null;
         const validTo = payload.validTo?.trim() || null;
+        const isShared = payload.isShared === true;
 
-        if (!subjectId || !sectionId || !networkId || !Number.isInteger(hours) || hours < 1) {
+        if (
+          (isShared && !hasPermission(auth.role, 'programs.manage')) ||
+          (!isShared && !hasPermission(auth.role, 'programs.personal_manage'))
+        ) {
+          res.status(403).json({
+            ok: false,
+            error: isShared
+              ? 'Seuls les administrateurs programme peuvent créer un programme partagé.'
+              : 'Tu ne peux pas créer de programme personnel.'
+          });
+          return;
+        }
+
+        if (!subjectId || !networkId || !Number.isInteger(hours) || hours < 1 || (isShared && !sectionId)) {
           res.status(400).json({
             ok: false,
-            error: 'subjectId, sectionId, networkId et hours sont obligatoires pour créer un programme.'
+            error: isShared && !sectionId
+              ? 'Une année est obligatoire pour créer un programme partagé.'
+              : 'La matière, le réseau et les heures sont obligatoires pour créer un programme.'
           });
           return;
         }
@@ -351,7 +458,9 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             hours,
             name,
             valid_from,
-            valid_to
+            valid_to,
+            owner_id,
+            is_shared
           )
           values (
             ${subjectId}::uuid,
@@ -360,7 +469,9 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             ${hours},
             ${name},
             ${validFrom}::date,
-            ${validTo}::date
+            ${validTo}::date,
+            ${auth.userId}::uuid,
+            ${isShared}
           )
           returning id::text as id
         `;
@@ -379,10 +490,16 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         return;
       }
 
+      const mutationProgramId = await resolveMutationProgramId(sql, action, payload);
+      if (mutationProgramId) {
+        await assertProgramEditable(sql, auth.userId, auth.role, mutationProgramId);
+      }
+
       if (action === 'update-program') {
         const programId = payload.programId?.trim() || null;
         const hours = Number(payload.hours);
         const name = payload.name?.trim() || null;
+        const requestedShared = payload.isShared;
 
         if (!programId || !Number.isInteger(hours) || hours < 1) {
           res.status(400).json({
@@ -392,12 +509,51 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           return;
         }
 
+        if (requestedShared === true && !hasPermission(auth.role, 'programs.manage')) {
+          res.status(403).json({
+            ok: false,
+            error: 'Seuls les administrateurs programme peuvent partager un programme.'
+          });
+          return;
+        }
+
+        if (requestedShared === true) {
+          const sectionRows = await sql`
+            select section_id::text as section_id
+            from public.programs
+            where id = ${programId}::uuid
+            limit 1
+          `;
+          const [existingProgram] = sectionRows as Array<{ section_id: string | null }>;
+
+          if (existingProgram && !existingProgram.section_id) {
+            res.status(400).json({
+              ok: false,
+              error: 'Ajoute une année avant de partager ce programme.'
+            });
+            return;
+          }
+        }
+
         const updatedRows = await sql`
           update public.programs
           set
             name = ${name},
-            hours = ${hours}
+            hours = ${hours},
+            owner_id = case
+              when ${requestedShared ?? null}::boolean = false then ${auth.userId}::uuid
+              else owner_id
+            end,
+            is_shared = case
+              when ${requestedShared ?? null}::boolean is null then is_shared
+              else ${requestedShared ?? null}::boolean
+            end
           where id = ${programId}::uuid
+            and (
+              ${requestedShared ?? null}::boolean is null
+              or ${requestedShared ?? null}::boolean = false
+              or ${hasPermission(auth.role, 'programs.manage')}
+            )
           returning id::text as id
         `;
 
@@ -709,6 +865,25 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         const clonedUaaIds: string[] = [];
 
         for (const uaaId of uaaIds) {
+          const sourceRows = await sql`
+            select 1
+            from public.uaa u
+            join public.programs p on p.id = u.program_id
+            where u.id = ${uaaId}::uuid
+              and (
+                p.is_shared = true
+                or p.owner_id = ${auth.userId}::uuid
+                or ${auth.role}::text = 'super_admin'
+              )
+            limit 1
+          `;
+          if (sourceRows.length === 0) {
+            res.status(403).json({
+              ok: false,
+              error: 'Une UAA source n’est pas accessible.'
+            });
+            return;
+          }
           clonedUaaIds.push(await cloneUaa(sql, uaaId, targetProgramId));
         }
 
@@ -741,15 +916,16 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
     const programId = getQueryParam(requestUrl, 'programId') ?? null;
     const withoutProgram = getQueryParam(requestUrl, 'withoutProgram') === 'true';
 
-    if (!sectionId) {
+    if (!sectionId && !programId) {
       res.status(400).json({
         ok: false,
-        error: 'Missing sectionId query parameter.'
+        error: 'Missing sectionId or programId query parameter.'
       });
       return;
     }
 
-    const rows = await sql`
+    const rows = programId && !sectionId
+      ? await sql`
       select
         sec.id as section_id,
         sec.code as section_code,
@@ -761,6 +937,69 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
         p.hours as program_hours,
         p.valid_from::text as program_valid_from,
         p.valid_to::text as program_valid_to,
+        p.owner_id::text as owner_id,
+        p.is_shared,
+        (
+          p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text = 'super_admin'
+          or (p.is_shared = true and ${auth.role}::text = 'program_admin')
+        ) as can_edit,
+        u.id as uaa_id,
+        u.code as uaa_code,
+        u.name as uaa_name,
+        sub.id as subject_id,
+        sub.name as subject_name,
+        net.id as network_id,
+        net.code as network_code,
+        net.name as network_name,
+        net.url as network_url,
+        pt.id as process_type_id,
+        pt.name as process_type_name,
+        s.id as skill_id,
+        s.description as skill_description,
+        r.id as resource_id,
+        r.description as resource_description,
+        c.id as competence_id,
+        c.description as competence_description,
+        st.id as strategy_id,
+        st.description as strategy_description
+      from public.programs p
+      left join public.sections sec on sec.id = p.section_id
+      left join public.uaa u on u.program_id = p.id
+      left join public.subjects sub on sub.id = p.subject_id
+      left join public.networks net on net.id = p.network_id
+      left join public.skills s on s.uaa_id = u.id
+      left join public.process_types pt on pt.id = s.process_type_id
+      left join public.resources r on r.uaa_id = u.id
+      left join public.uaa_competences c on c.uaa_id = u.id
+      left join public.uaa_strategies st on st.uaa_id = u.id
+      where p.id = ${programId}::uuid
+        and (
+          p.is_shared = true
+          or p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text = 'super_admin'
+        )
+      order by u.code, pt.name, s.description, r.description, c.description, st.description
+    `
+      : await sql`
+      select
+        sec.id as section_id,
+        sec.code as section_code,
+        sec.level as section_level,
+        sec.type as section_type,
+        sec.label as section_label,
+        p.id as program_id,
+        p.name as program_name,
+        p.hours as program_hours,
+        p.valid_from::text as program_valid_from,
+        p.valid_to::text as program_valid_to,
+        p.owner_id::text as owner_id,
+        p.is_shared,
+        (
+          p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text = 'super_admin'
+          or (p.is_shared = true and ${auth.role}::text = 'program_admin')
+        ) as can_edit,
         u.id as uaa_id,
         u.code as uaa_code,
         u.name as uaa_name,
@@ -787,6 +1026,11 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
        and (${networkId}::uuid is null or p.network_id = ${networkId}::uuid)
        and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
        and (${programId}::uuid is null or p.id = ${programId}::uuid)
+       and (
+         p.is_shared = true
+         or p.owner_id = ${auth.userId}::uuid
+         or ${auth.role}::text = 'super_admin'
+       )
       left join public.uaa u
         on u.program_id = p.id
       left join public.subjects sub
@@ -843,6 +1087,18 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
       data: program
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+
+    if (message.includes('lecture seule')) {
+      res.status(403).json({ ok: false, error: message });
+      return;
+    }
+
+    if (message === 'Programme introuvable.') {
+      res.status(404).json({ ok: false, error: message });
+      return;
+    }
+
     if ((error as { code?: string }).code === '23505') {
       res.status(409).json({
         ok: false,

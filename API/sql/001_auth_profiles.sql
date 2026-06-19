@@ -11,7 +11,8 @@ create table if not exists public.profiles (
   user_id text primary key,
   email text not null unique,
   full_name text,
-  role text not null default 'user' check (role in ('admin', 'user', 'student')),
+  role text not null default 'teacher'
+    check (role in ('super_admin', 'program_admin', 'direction_admin', 'teacher')),
   auth_provider text not null default 'google',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

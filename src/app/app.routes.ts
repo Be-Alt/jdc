@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './helpers/auth.guard';
+import { permissionGuard } from './helpers/permission.guard';
 import { AuthCallbackComponent } from './pages/auth/auth-callback.component';
 import { LoginPageComponent } from './pages/auth/login-page.component';
 import { DashboardComponent } from './pages/private/dashboard.component';
@@ -38,33 +39,45 @@ export const routes: Routes = [
       },
       {
         path: 'students',
-        component: Students
+        component: Students,
+        canActivate: [permissionGuard],
+        data: { permission: 'students.read' }
       },
       {
         path: 'students/new',
-        component: StudentFormComponent
+        component: StudentFormComponent,
+        canActivate: [permissionGuard],
+        data: { permission: 'students.manage' }
       },
       {
         path: 'students/:id/assessment',
         loadComponent: () =>
           import('./pages/private/students/student-assessment.component').then(
             (module) => module.StudentAssessmentComponent
-          )
+          ),
+        canActivate: [permissionGuard],
+        data: { permission: 'teaching.manage' }
       },
       {
         path: 'students/:id',
         loadComponent: () =>
           import('./pages/private/students/student-detail.component').then(
             (module) => module.StudentDetailComponent
-          )
+          ),
+        canActivate: [permissionGuard],
+        data: { permission: 'students.read' }
       },
       {
         path: 'students/:id/edit',
-        component: StudentFormComponent
+        component: StudentFormComponent,
+        canActivate: [permissionGuard],
+        data: { permission: 'students.manage' }
       },
       {
         path: 'class-journal',
-        component: ClassJournalComponent
+        component: ClassJournalComponent,
+        canActivate: [permissionGuard],
+        data: { permission: 'teaching.manage' }
       },
       {
         path: 'teacher-profile',
@@ -73,7 +86,9 @@ export const routes: Routes = [
       {
         path: 'attendance',
         component: PrivatePlaceholderComponent,
+        canActivate: [permissionGuard],
         data: {
+          permission: 'teaching.manage',
           title: 'Présences',
           description: 'Cette section accueillera les présences, retards, absences et les vues par cours ou par date.'
         }
@@ -81,18 +96,31 @@ export const routes: Routes = [
       {
         path: 'follow-up',
         component: PrivatePlaceholderComponent,
+        canActivate: [permissionGuard],
         data: {
+          permission: 'teaching.manage',
           title: 'Suivis',
           description: 'Cette section accueillera les remarques, observations, actions et le suivi pédagogique des élèves.'
         }
       },
       {
         path: 'settings/program',
-        component: SettingsProgramPageComponent
+        component: SettingsProgramPageComponent,
+        canActivate: [permissionGuard],
+        data: { permissions: ['programs.manage', 'programs.personal_manage'] }
       },
       {
         path: 'settings',
-        component: SettingsComponent
+        component: SettingsComponent,
+        canActivate: [permissionGuard],
+        data: { permissions: ['directory.manage', 'programs.manage', 'schedules.manage'] }
+      },
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./pages/private/users/users.component').then((module) => module.UsersComponent),
+        canActivate: [permissionGuard],
+        data: { permission: 'users.manage' }
       }
     ]
   },

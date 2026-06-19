@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -47,7 +47,7 @@ async function loadAttendance(sql: any, ownerId: string, enrollmentId: string, u
   }));
 }
 
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ req, res, auth }) => {
   try {
     const enrollmentId = getQueryParam((req as { url?: string }).url, 'enrollmentId');
     const includeProgram = getQueryParam((req as { url?: string }).url, 'includeProgram') !== 'false';
@@ -81,6 +81,7 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
           sec.type as section_type, sec.label as section_label,
           p.id::text as program_id, p.name as program_name, p.hours as program_hours,
           p.valid_from::text as program_valid_from, p.valid_to::text as program_valid_to,
+          p.owner_id::text as program_owner_id, p.is_shared as program_is_shared,
           sub.id::text as subject_id, sub.name as subject_name,
           net.id::text as network_id, net.code as network_code, net.name as network_name, net.url as network_url,
           u.id::text as uaa_id, u.code as uaa_code, u.name as uaa_name,
@@ -100,6 +101,7 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         left join public.uaa_competences c on c.uaa_id = u.id
         left join public.uaa_strategies st on st.uaa_id = u.id
         where p.id = ${enrollment.program_id}::uuid
+          and (p.is_shared = true or p.owner_id = ${auth.userId}::uuid)
         order by u.code, pt.name, s.description, r.description
       `;
 
@@ -143,7 +145,13 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
             id: first.program_id, name: first.program_name, hours: first.program_hours,
             validFrom: first.program_valid_from, validTo: first.program_valid_to,
             subject: { id: first.subject_id, name: first.subject_name },
-            network: { id: first.network_id, code: first.network_code, name: first.network_name, url: first.network_url }
+            network: { id: first.network_id, code: first.network_code, name: first.network_name, url: first.network_url },
+            ownerId: first.program_owner_id,
+            isShared: first.program_is_shared,
+            canEdit:
+              first.program_owner_id === auth.userId ||
+              auth.role === 'super_admin' ||
+              (first.program_is_shared && auth.role === 'program_admin')
           },
           uaas: Array.from(uaaMap.values())
         };

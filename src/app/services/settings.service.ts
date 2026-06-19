@@ -284,16 +284,17 @@ export class SettingsService {
   }
 
   getProgramBySectionId$(
-    sectionId: string,
+    sectionId: string | null,
     networkId: string,
     subjectId?: string | null,
     programId?: string | null,
     withoutProgram = false
   ): Observable<SectionProgram> {
-    const params = new URLSearchParams({
-      sectionId,
-      networkId
-    });
+    const params = new URLSearchParams({ networkId });
+
+    if (sectionId) {
+      params.set('sectionId', sectionId);
+    }
 
     if (subjectId) {
       params.set('subjectId', subjectId);
@@ -330,12 +331,13 @@ export class SettingsService {
 
   createProgram$(payload: {
     subjectId: string;
-    sectionId: string;
+    sectionId?: string | null;
     networkId: string;
     hours: number;
     name?: string | null;
     validFrom?: string | null;
     validTo?: string | null;
+    isShared?: boolean;
   }): Observable<{ id: string }> {
     return this.mutateProgram$({
       action: 'create-program',
@@ -347,6 +349,7 @@ export class SettingsService {
     programId: string;
     hours: number;
     name?: string | null;
+    isShared?: boolean;
   }): Observable<{ id: string }> {
     return this.mutateProgram$({
       action: 'update-program',

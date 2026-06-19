@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -13,7 +13,7 @@ type Row = {
   item_label: string;
 };
 
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) => {
+export default withPermissionEndpoint('GET,OPTIONS', 'teaching.manage', async ({ res, auth }) => {
   try {
     const sql = neon(getEnv('DATABASE_URL'));
     const rows = await sql`

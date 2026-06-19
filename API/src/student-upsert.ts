@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -18,7 +18,7 @@ type StudentUpsertPayload = {
   accommodationIds?: number[];
 };
 
-export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async ({ req, res, auth }) => {
   try {
     const payload = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {}) as StudentUpsertPayload;
 
@@ -80,6 +80,7 @@ export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ req, res, auth
         from public.programs
         where id = ${requestedProgramId}::uuid
           and section_id = ${sectionId}::uuid
+          and (is_shared = true or owner_id = ${auth.userId}::uuid)
         limit 1
       `;
 

@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -50,7 +50,9 @@ async function listTeachers(sql: any, userId: string) {
   return rows as TeacherRow[];
 }
 
-export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({ req, res, auth }) => {
+export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
+  GET: 'directory.read', POST: 'directory.manage', PUT: 'directory.manage', DELETE: 'directory.manage'
+}, async ({ req, res, auth }) => {
   const sql = neon(getEnv('DATABASE_URL'));
 
   try {

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getEnv, getOptionalEnv } from './env.js';
-import { type AppRole, type ProfileRecord } from './auth.js';
+import { normalizeAppRole, type AppRole, type ProfileRecord } from './auth.js';
 
 const ACCESS_COOKIE_NAME = 'app_access';
 const REFRESH_COOKIE_NAME = 'app_refresh';
@@ -205,7 +205,7 @@ export function verifyAppJwt(token: string, expectedType: JwtTokenType = 'access
     userId: payload.sub,
     email: payload.email,
     name: payload.name,
-    role: payload.role,
+    role: normalizeAppRole(payload.role),
     tokenType: payload.type
   };
 }

@@ -1,6 +1,6 @@
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 
-export default withAuthenticatedEndpoint('POST,OPTIONS', async ({ res }) => {
+export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async ({ res }) => {
   res.status(410).json({
     ok: false,
     error: 'Le partage à l’organisation est désactivé pour le moment.'

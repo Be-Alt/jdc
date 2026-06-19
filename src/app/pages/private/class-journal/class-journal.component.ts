@@ -857,7 +857,9 @@ export class ClassJournalComponent implements OnInit {
     program: ProgramCatalogItem
   ): Promise<void> {
     const slotKey = this.getSlotKey(slot);
-    this.journalService.setStudentSection(slotKey, studentEnrollmentId, program.section_id);
+    if (program.section_id) {
+      this.journalService.setStudentSection(slotKey, studentEnrollmentId, program.section_id);
+    }
     await this.selectProgramForStudent(
       slotKey,
       studentEnrollmentId,
@@ -937,7 +939,7 @@ export class ClassJournalComponent implements OnInit {
   private async selectProgramForStudent(
     slotKey: string,
     studentEnrollmentId: string,
-    sectionId: string,
+    sectionId: string | null,
     preferredNetworkId = '',
     preferredProgramId = '',
     subjectId = '',
@@ -953,6 +955,33 @@ export class ClassJournalComponent implements OnInit {
     };
 
     try {
+      if (!sectionId && preferredProgramId && preferredNetworkId) {
+        const program = await firstValueFrom(
+          this.settingsService.getProgramBySectionId$(
+            null,
+            preferredNetworkId,
+            subjectId || null,
+            preferredProgramId
+          )
+        );
+        this.journalService.setStudentNetwork(slotKey, studentEnrollmentId, preferredNetworkId, {
+          preserveSelections: options?.preserveSelections === true
+        });
+        this.journalService.setStudentProgram(slotKey, studentEnrollmentId, program.program?.id ?? '');
+        this.closeProgramUaas(slotKey, studentEnrollmentId);
+        this.studentProgramStates[stateKey] = {
+          isLoading: false,
+          errorMessage: '',
+          networks: program.program?.network ? [program.program.network] : [],
+          program
+        };
+        return;
+      }
+
+      if (!sectionId) {
+        throw new Error('Ce programme sans année doit être sélectionné explicitement.');
+      }
+
       const networks = await firstValueFrom(
         this.settingsService.getProgramNetworksBySectionId$(sectionId, subjectId || null)
       );
@@ -1475,12 +1504,12 @@ export class ClassJournalComponent implements OnInit {
     await Promise.all(
       entries.flatMap((entry) =>
         entry.students
-          .filter((student) => student.section_id)
+          .filter((student) => student.section_id || student.program_id)
           .map((student) => {
             return this.selectProgramForStudent(
               entry.slot_key,
               student.student_enrollment_id,
-              student.section_id as string,
+              student.section_id,
               student.network_id ?? '',
               student.program_id ?? '',
               '',
@@ -1533,7 +1562,7 @@ export class ClassJournalComponent implements OnInit {
               return null;
             }
 
-            if (!sectionId) {
+            if (!sectionId && !programId) {
               return null;
             }
 

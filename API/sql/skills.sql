@@ -52,6 +52,8 @@ CREATE TABLE programs (
   subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
   section_id UUID REFERENCES sections(id) ON DELETE CASCADE,
   network_id UUID REFERENCES networks(id) ON DELETE CASCADE,
+  owner_id UUID,
+  is_shared BOOLEAN NOT NULL DEFAULT false,
 
   hours INT NOT NULL,
   name TEXT,
@@ -59,8 +61,25 @@ CREATE TABLE programs (
   valid_from DATE,
   valid_to DATE,
 
-  UNIQUE(subject_id, section_id, network_id, hours)
+  CHECK (
+    (is_shared = true AND section_id IS NOT NULL)
+    OR (is_shared = false AND owner_id IS NOT NULL)
+  )
 );
+
+CREATE UNIQUE INDEX uq_shared_program_definition
+ON programs(subject_id, section_id, network_id, hours)
+WHERE is_shared = true;
+
+CREATE UNIQUE INDEX uq_personal_program_definition
+ON programs(
+  owner_id,
+  subject_id,
+  coalesce(section_id, '00000000-0000-0000-0000-000000000000'::uuid),
+  network_id,
+  hours
+)
+WHERE is_shared = false;
 
 -- =========================
 -- UAA

@@ -280,7 +280,7 @@ type StudentDetailViewModel = {
 
             @if (isProgramOpen && programSummary?.program; as program) {
               <p class="mt-2 text-sm text-slate-600">
-                {{ program.program?.name || program.program?.subject?.name }} · {{ program.section.code }}
+                {{ program.program?.name || program.program?.subject?.name }} · {{ program.section?.code || 'Tous niveaux' }}
               </p>
               <div class="mt-5 space-y-3">
                 @for (uaa of program.uaas; track uaa.id) {

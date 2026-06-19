@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withPermissionEndpoint } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -19,7 +19,7 @@ function getQueryParam(url: string | undefined, name: string): string | undefine
   return query || undefined;
 }
 
-export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth }) => {
+export default withPermissionEndpoint('GET,OPTIONS', 'programs.read', async ({ req, res, auth }) => {
   try {
     const requestUrl = (req as { url?: string }).url;
     const sectionId = getQueryParam(requestUrl, 'sectionId');
@@ -45,6 +45,11 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ req, res, auth 
         on net.id = p.network_id
       where p.section_id = ${sectionId}::uuid
         and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
+        and (
+          p.is_shared = true
+          or p.owner_id = ${auth.userId}::uuid
+          or ${auth.role}::text = 'super_admin'
+        )
       order by net.code asc, net.name asc
     `;
 

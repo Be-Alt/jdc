@@ -9,6 +9,7 @@ import { Section } from '../../../models/Section';
 import { Subject } from '../../../models/Subject';
 import { Teacher } from '../../../models/Teacher';
 import { SettingsService } from '../../../services/settings.service';
+import { CurrentUserService } from '../../../services/current-user.service';
 
 type SectionsViewModel = {
   isLoading: boolean;
@@ -118,6 +119,21 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                   </div>
                 } @else {
                   <div class="flex gap-2 overflow-x-auto pb-1">
+                    @if (currentUserService.has('programs.personal_manage')) {
+                      <button
+                        type="button"
+                        (click)="selectLevel(0)"
+                        class="shrink-0 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition"
+                        [class.border-slate-950]="isSelectedLevel(0)"
+                        [class.bg-slate-950]="isSelectedLevel(0)"
+                        [class.text-white]="isSelectedLevel(0)"
+                        [class.border-slate-200]="!isSelectedLevel(0)"
+                        [class.bg-white]="!isSelectedLevel(0)"
+                        [class.text-slate-700]="!isSelectedLevel(0)"
+                      >
+                        Sans année
+                      </button>
+                    }
                     @for (level of getSectionLevels(sectionsVm.sections); track level) {
                       <button
                         type="button"
@@ -185,17 +201,26 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                             [class.bg-white]="!isSelectedCatalogProgram(catalogProgram)"
                           >
                             <p class="text-xs font-medium tracking-[0.18em] text-slate-500 uppercase">
-                              {{ catalogProgram.section_code }} · {{ catalogProgram.network_code }} · {{ catalogProgram.hours }} h
+                              {{ catalogProgram.section_code || 'Sans année' }} · {{ catalogProgram.network_code }} · {{ catalogProgram.hours }} h
                             </p>
                             <p class="mt-2 text-base font-semibold text-slate-950">
                               {{ catalogProgram.name || catalogProgram.subject_name }}
                             </p>
                             <p class="mt-1 text-sm leading-6 text-slate-600">
-                              {{ catalogProgram.section_label }}
+                              {{ catalogProgram.section_label || 'Programme personnel commun à tous les niveaux' }}
                             </p>
                             <p class="mt-2 text-xs font-medium text-slate-500">
                               {{ catalogProgram.uaa_count }} UAA
                             </p>
+                            <span
+                              class="mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                              [class.bg-violet-100]="catalogProgram.is_shared"
+                              [class.text-violet-800]="catalogProgram.is_shared"
+                              [class.bg-slate-100]="!catalogProgram.is_shared"
+                              [class.text-slate-700]="!catalogProgram.is_shared"
+                            >
+                              {{ catalogProgram.is_shared ? 'Partagé' : 'Personnel' }}
+                            </span>
                           </button>
                         }
                       </div>
@@ -204,27 +229,34 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
 
                   @if (isProgramCreateOpen) {
                     <div class="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-                      <p class="text-sm font-semibold text-slate-900">Choisir la section</p>
-                      <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        @for (section of getSectionsForSelectedLevel(sectionsVm.sections); track section.id) {
-                          <button
-                            type="button"
-                            (click)="selectSectionForProgramCreation(section.id)"
-                            class="rounded-2xl border bg-white p-4 text-left transition hover:bg-slate-50"
-                            [class.border-sky-300]="isSelectedSection(section.id)"
-                            [class.bg-sky-50]="isSelectedSection(section.id)"
-                            [class.border-slate-200]="!isSelectedSection(section.id)"
-                          >
-                            <p class="text-xs font-medium tracking-[0.18em] text-slate-500 uppercase">
-                              {{ section.type }} · {{ section.level }}e
-                            </p>
-                            <p class="mt-2 text-base font-semibold text-slate-950">{{ section.code }}</p>
-                            <p class="mt-1 text-sm leading-6 text-slate-600">{{ section.label }}</p>
-                          </button>
-                        }
-                      </div>
+                      @if (selectedLevel === 0) {
+                        <p class="text-sm font-semibold text-slate-900">Programme personnel sans année</p>
+                        <p class="mt-1 text-sm text-slate-600">
+                          Ce programme pourra être utilisé avec cette matière quel que soit le niveau de l’élève.
+                        </p>
+                      } @else {
+                        <p class="text-sm font-semibold text-slate-900">Choisir la section</p>
+                        <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          @for (section of getSectionsForSelectedLevel(sectionsVm.sections); track section.id) {
+                            <button
+                              type="button"
+                              (click)="selectSectionForProgramCreation(section.id)"
+                              class="rounded-2xl border bg-white p-4 text-left transition hover:bg-slate-50"
+                              [class.border-sky-300]="isSelectedSection(section.id)"
+                              [class.bg-sky-50]="isSelectedSection(section.id)"
+                              [class.border-slate-200]="!isSelectedSection(section.id)"
+                            >
+                              <p class="text-xs font-medium tracking-[0.18em] text-slate-500 uppercase">
+                                {{ section.type }} · {{ section.level }}e
+                              </p>
+                              <p class="mt-2 text-base font-semibold text-slate-950">{{ section.code }}</p>
+                              <p class="mt-1 text-sm leading-6 text-slate-600">{{ section.label }}</p>
+                            </button>
+                          }
+                        </div>
+                      }
 
-                      @if (selectedSectionId) {
+                      @if (selectedSectionId || selectedLevel === 0) {
                         @if (networksVm$ | async; as networksVm) {
                           <div class="mt-5 space-y-3">
                             <p class="text-sm font-semibold text-slate-900">Choisir le réseau</p>
@@ -306,9 +338,11 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
               <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="text-sm font-medium tracking-[0.18em] text-sky-700 uppercase">Programme affiché</p>
-                  <h3 class="mt-2 text-2xl font-semibold text-slate-950">{{ program.section.label }}</h3>
+                  <h3 class="mt-2 text-2xl font-semibold text-slate-950">
+                    {{ program.section?.label || 'Programme sans année' }}
+                  </h3>
                   <p class="mt-2 text-sm text-slate-600">
-                    {{ program.section.code }}
+                    {{ program.section?.code || 'Tous niveaux' }}
                     @if (program.program; as programSummary) {
                       @if (programSummary.name) {
                         <span> · {{ programSummary.name }}</span>
@@ -318,6 +352,7 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                       @if (programSummary.network) {
                         <span> · {{ programSummary.network.name }}</span>
                       }
+                      <span> · {{ programSummary.isShared ? 'Partagé' : 'Personnel' }}</span>
                     } @else if (selectedNetworkName$ | async; as selectedNetworkName) {
                       <span> · {{ selectedNetworkName }}</span>
                     }
@@ -325,7 +360,7 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                 </div>
 
                 <div class="flex shrink-0 flex-wrap gap-2">
-                  @if (program.program) {
+                  @if (program.program?.canEdit) {
                     <button
                       type="button"
                       (click)="toggleProgramEditing(program.program)"
@@ -333,7 +368,7 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                     >
                       {{ isProgramEditing ? 'Fermer l’édition' : 'Modifier le programme' }}
                     </button>
-                  } @else if (selectedSubjectId && selectedSectionId && selectedNetworkId) {
+                  } @else if (!program.program && selectedSubjectId && selectedSectionId && selectedNetworkId) {
                     <button
                       type="button"
                       (click)="toggleProgramCreation()"
@@ -346,7 +381,7 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
               </div>
             </div>
 
-            @if (selectedSubjectId && selectedSectionId && selectedNetworkId && isProgramCreateOpen) {
+            @if (selectedSubjectId && (selectedSectionId || selectedLevel === 0) && selectedNetworkId && isProgramCreateOpen) {
               <form
                 [formGroup]="programForm"
                 (ngSubmit)="createProgram()"
@@ -394,6 +429,15 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                       class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
                     />
                   </label>
+                  @if (currentUserService.has('programs.manage') && selectedLevel !== 0) {
+                    <label class="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 xl:col-span-2">
+                      <input type="checkbox" formControlName="isShared" class="h-5 w-5 accent-violet-700" />
+                      <span>
+                        <span class="block text-sm font-semibold text-violet-900">Partager ce programme</span>
+                        <span class="mt-1 block text-xs text-violet-700">Il sera visible en lecture seule par tous les utilisateurs.</span>
+                      </span>
+                    </label>
+                  }
                 </div>
 
                 <div class="mt-5 flex justify-end">
@@ -450,6 +494,12 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
                       />
                     </label>
                   </div>
+                  @if (currentUserService.has('programs.manage') && program.section) {
+                    <label class="mt-4 flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+                      <input type="checkbox" formControlName="isShared" class="h-5 w-5 accent-violet-700" />
+                      <span class="text-sm font-semibold text-violet-900">Programme partagé avec tous les utilisateurs</span>
+                    </label>
+                  }
                 </form>
               }
             }
@@ -936,6 +986,7 @@ type ProgramItemType = 'resource' | 'competence' | 'strategy' | 'skill';
 })
 export class SettingsProgramPageComponent {
   private readonly settingsService = inject(SettingsService);
+  protected readonly currentUserService = inject(CurrentUserService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly selectedSubjectIdSubject = new BehaviorSubject<string | null>(null);
   private readonly selectedSectionIdSubject = new BehaviorSubject<string | null>(null);
@@ -972,11 +1023,13 @@ export class SettingsProgramPageComponent {
     name: [''],
     hours: [null as number | null, [Validators.required, Validators.min(1)]],
     validFrom: [''],
-    validTo: ['']
+    validTo: [''],
+    isShared: [false]
   });
   protected readonly programDetailsForm = this.formBuilder.group({
     name: [''],
-    hours: [null as number | null, [Validators.required, Validators.min(1)]]
+    hours: [null as number | null, [Validators.required, Validators.min(1)]],
+    isShared: [false]
   });
   protected readonly uaaForm = this.formBuilder.group({
     code: ['', Validators.required],
@@ -1079,16 +1132,16 @@ export class SettingsProgramPageComponent {
         });
       }
 
-      const sectionIds = new Set(
-        sectionsVm.sections
-          .filter((section) => section.level === selectedLevel)
-          .map((section) => section.id)
-      );
-
       return this.settingsService.getProgramCatalog$(subjectId).pipe(
         map(
           (programs): ProgramCatalogViewModel => ({
-            programs: programs.filter((program) => sectionIds.has(program.section_id)),
+            programs: selectedLevel === 0
+              ? programs.filter((program) => !program.section_id && !program.is_shared)
+              : programs.filter((program) =>
+                  sectionsVm.sections.some(
+                    (section) => section.level === selectedLevel && section.id === program.section_id
+                  )
+                ),
             isLoading: false,
             errorMessage: ''
           })
@@ -1115,7 +1168,7 @@ export class SettingsProgramPageComponent {
     this.selectedSubjectIdSubject
   ]).pipe(
     switchMap(([sectionId, subjectId]) => {
-      if (!sectionId) {
+      if (!sectionId && this.selectedLevel !== 0) {
         return of<NetworksViewModel>({
           networks: [],
           isLoading: false,
@@ -1164,7 +1217,27 @@ export class SettingsProgramPageComponent {
     this.refreshProgramSubject
   ]).pipe(
     switchMap(([sectionId, networkId, programId, subjectId]) => {
-      if (!sectionId || !networkId) {
+      if (!networkId) {
+        return of<ProgramViewModel>({
+          program: null,
+          isLoading: false,
+          errorMessage: ''
+        });
+      }
+
+      if (!sectionId && !programId && this.selectedLevel === 0) {
+        return of<ProgramViewModel>({
+          program: {
+            section: null,
+            program: null,
+            uaas: []
+          },
+          isLoading: false,
+          errorMessage: ''
+        });
+      }
+
+      if (!sectionId && !programId) {
         return of<ProgramViewModel>({
           program: null,
           isLoading: false,
@@ -1332,6 +1405,9 @@ export class SettingsProgramPageComponent {
   protected selectLevel(level: number): void {
     this.selectedLevel = level;
     this.selectedLevelSubject.next(level);
+    if (level === 0) {
+      this.programForm.patchValue({ isShared: false }, { emitEvent: false });
+    }
     this.selectedSectionIdSubject.next(null);
     this.selectedNetworkIdSubject.next(null);
     this.selectedProgramIdSubject.next(null);
@@ -1404,7 +1480,7 @@ export class SettingsProgramPageComponent {
   }
 
   protected getSectionsForSelectedLevel(sections: Section[]): Section[] {
-    if (this.selectedLevel === null) {
+    if (this.selectedLevel === null || this.selectedLevel === 0) {
       return sections;
     }
 
@@ -1455,7 +1531,8 @@ export class SettingsProgramPageComponent {
     if (this.isProgramEditing && programSummary) {
       this.programDetailsForm.reset({
         name: programSummary.name ?? '',
-        hours: programSummary.hours
+        hours: programSummary.hours,
+        isShared: programSummary.isShared
       });
     }
   }
@@ -1575,8 +1652,21 @@ export class SettingsProgramPageComponent {
   }
 
   protected createProgram(): void {
-    if (this.programForm.invalid || this.isSavingProgram || !this.selectedSubjectId || !this.selectedSectionId || !this.selectedNetworkId) {
+    const rawValue = this.programForm.getRawValue();
+    const isShared = this.currentUserService.has('programs.manage') && rawValue.isShared === true;
+
+    if (
+      this.programForm.invalid ||
+      this.isSavingProgram ||
+      !this.selectedSubjectId ||
+      !this.selectedNetworkId ||
+      (isShared && !this.selectedSectionId) ||
+      (!this.selectedSectionId && this.selectedLevel !== 0)
+    ) {
       this.programForm.markAllAsTouched();
+      if (isShared && !this.selectedSectionId) {
+        this.programEditorError = 'Une année est obligatoire pour partager un programme.';
+      }
       return;
     }
 
@@ -1584,16 +1674,15 @@ export class SettingsProgramPageComponent {
     this.programEditorError = '';
     this.programEditorMessage = '';
 
-    const rawValue = this.programForm.getRawValue();
-
     this.settingsService.createProgram$({
       subjectId: this.selectedSubjectId,
-      sectionId: this.selectedSectionId,
+      sectionId: this.selectedSectionId || null,
       networkId: this.selectedNetworkId,
       hours: Number(rawValue.hours),
       name: rawValue.name?.trim() || null,
       validFrom: rawValue.validFrom || null,
-      validTo: rawValue.validTo || null
+      validTo: rawValue.validTo || null,
+      isShared
     }).subscribe({
       next: (result) => {
         this.isSavingProgram = false;
@@ -1605,7 +1694,8 @@ export class SettingsProgramPageComponent {
           name: '',
           hours: null,
           validFrom: '',
-          validTo: ''
+          validTo: '',
+          isShared: false
         });
         this.refreshProgramSubject.next();
       },
@@ -1631,7 +1721,10 @@ export class SettingsProgramPageComponent {
     this.settingsService.updateProgram$({
       programId,
       hours: Number(rawValue.hours),
-      name: rawValue.name?.trim() || null
+      name: rawValue.name?.trim() || null,
+      isShared: this.currentUserService.has('programs.manage')
+        ? rawValue.isShared === true
+        : undefined
     }).subscribe({
       next: () => {
         this.isSavingProgramDetails = false;

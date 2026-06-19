@@ -1,5 +1,11 @@
 import { neon } from '@neondatabase/serverless';
 import { getEnv } from './env.js';
+export function normalizeAppRole(value) {
+    if (value === 'super_admin' || value === 'program_admin' || value === 'direction_admin' || value === 'teacher') {
+        return value;
+    }
+    return value === 'admin' ? 'super_admin' : 'teacher';
+}
 export function parseAuthenticatedUser(body) {
     const input = (typeof body === 'string' ? JSON.parse(body) : (body ?? {}));
     return {
@@ -56,7 +62,7 @@ export async function getProfileRecord(user) {
         userId: row.user_id,
         email: row.email,
         name: row.full_name,
-        role: row.role
+        role: normalizeAppRole(row.role)
     };
 }
 export async function requireAllowedRole(user, allowedRoles) {

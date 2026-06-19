@@ -40,7 +40,7 @@ type ProgramMaterial = {
           </h2>
           @if (summary?.program; as program) {
             <p class="mt-2 text-sm text-slate-600">
-              {{ program.program?.name || program.program?.subject?.name }} · {{ program.section.code }}
+              {{ program.program?.name || program.program?.subject?.name }} · {{ program.section?.code || 'Tous niveaux' }}
             </p>
           }
         </div>
@@ -408,7 +408,7 @@ export class StudentAssessmentComponent implements OnInit {
       .join('');
 
     const title = `Bilan des compétences - ${this.student.first_name} ${this.student.last_name}`;
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#172033}h1{color:#075985}h2{margin-top:24px;color:#334155}h3{margin:14px 0 6px;color:#075985}p{color:#475569}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#e0f2fe}.status{width:70px;text-align:center;font-weight:bold}ul{margin-top:6px}</style></head><body><h1>${this.escapeHtml(title)}</h1><p>${this.escapeHtml(this.summary.program.program?.name || this.summary.program.program?.subject?.name || '')} · ${this.escapeHtml(this.summary.program.section.code)} · ${new Intl.DateTimeFormat('fr-BE').format(new Date())}</p>${sections}</body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#172033}h1{color:#075985}h2{margin-top:24px;color:#334155}h3{margin:14px 0 6px;color:#075985}p{color:#475569}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left;vertical-align:top}th{background:#e0f2fe}.status{width:70px;text-align:center;font-weight:bold}ul{margin-top:6px}</style></head><body><h1>${this.escapeHtml(title)}</h1><p>${this.escapeHtml(this.summary.program.program?.name || this.summary.program.program?.subject?.name || '')} · ${this.escapeHtml(this.summary.program.section?.code || 'Tous niveaux')} · ${new Intl.DateTimeFormat('fr-BE').format(new Date())}</p>${sections}</body></html>`;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

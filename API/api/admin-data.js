@@ -1,5 +1,5 @@
 import { createRoleProtectedHandler } from './lib/role-endpoint.js';
 export default createRoleProtectedHandler({
-    allowedRoles: ['admin'],
+    allowedRoles: ['super_admin'],
     tableName: 'admin_test_data'
 });

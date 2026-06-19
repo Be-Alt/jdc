@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 async function loadSchedule(sql, ownerId) {
@@ -47,7 +47,10 @@ async function loadSchedule(sql, ownerId) {
         slots: slots
     };
 }
-export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, auth }) => {
+export default withMethodPermissions('GET,POST,OPTIONS', {
+    GET: 'programs.read',
+    POST: 'schedules.manage'
+}, async ({ req, res, auth }) => {
     const sql = neon(getEnv('DATABASE_URL'));
     try {
         if (req.method === 'GET') {

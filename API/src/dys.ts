@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -60,7 +60,9 @@ async function loadDysTypes(sql: any) {
   }));
 }
 
-export default withAuthenticatedEndpoint('GET,PUT,OPTIONS', async ({ req, res, auth }) => {
+export default withMethodPermissions('GET,PUT,OPTIONS', {
+  GET: 'directory.read', PUT: 'directory.manage'
+}, async ({ req, res, auth }) => {
   const sql = neon(getEnv('DATABASE_URL'));
 
   try {

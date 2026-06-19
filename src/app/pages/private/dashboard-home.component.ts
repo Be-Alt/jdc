@@ -6,6 +6,8 @@ import { catchError, combineLatest, map, of, startWith } from 'rxjs';
 import { StudentOption } from '../../models/StudentOption';
 import { WeeklyScheduleConfig, WeeklyScheduleSlot } from '../../models/WeeklySchedule';
 import { SettingsService } from '../../services/settings.service';
+import { AppPermission } from '../../models/Auth';
+import { CurrentUserService } from '../../services/current-user.service';
 
 type DaySchedule = {
   dayOfWeek: number;
@@ -36,46 +38,74 @@ type DashboardHomeViewModel = {
 })
 export class DashboardHomeComponent {
   private readonly settingsService = inject(SettingsService);
+  private readonly currentUserService = inject(CurrentUserService);
   private readonly showAllDaysSubject = new BehaviorSubject<boolean>(false);
 
-  protected readonly featureItems = [
+  private readonly allFeatureItems: Array<{
+    title: string;
+    description: string;
+    path: string;
+    badge: string;
+    permission: AppPermission | AppPermission[];
+  }> = [
     {
       title: 'Élèves',
       description: 'Consulter les fiches, ajouter un élève et retrouver les informations par année scolaire.',
       path: '/dashboard/students',
-      badge: 'Gestion'
+      badge: 'Gestion',
+      permission: 'students.read'
     },
     {
       title: 'Journal de classe',
       description: 'Ouvrir l’agenda du professeur, gérer les séances et suivre les activités du jour.',
       path: '/dashboard/class-journal',
-      badge: 'Agenda'
+      badge: 'Agenda',
+      permission: 'teaching.manage'
     },
     {
       title: 'Présences',
       description: 'Préparer le suivi des absences, retards et présences par cours ou par date.',
       path: '/dashboard/attendance',
-      badge: 'Suivi'
+      badge: 'Suivi',
+      permission: 'teaching.manage'
     },
     {
       title: 'Suivis',
       description: 'Centraliser les remarques, observations et actions pédagogiques liées aux élèves.',
       path: '/dashboard/follow-up',
-      badge: 'Actions'
+      badge: 'Actions',
+      permission: 'teaching.manage'
     },
     {
       title: 'Paramètres',
-      description: 'Configurer l’horaire, les congés, les écoles, les professeurs et les référentiels.',
+      description: 'Configurer l’agenda et les réglages autorisés pour ton rôle.',
       path: '/dashboard/settings',
-      badge: 'Réglages'
+      badge: 'Réglages',
+      permission: ['directory.manage', 'schedules.manage']
     },
     {
       title: 'Programmes',
       description: 'Accéder à la configuration des programmes, UAA, compétences et ressources.',
       path: '/dashboard/settings/program',
-      badge: 'Référentiel'
+      badge: 'Référentiel',
+      permission: ['programs.manage', 'programs.personal_manage']
+    },
+    {
+      title: 'Utilisateurs',
+      description: 'Attribuer les rôles et contrôler les accès à l’application.',
+      path: '/dashboard/users',
+      badge: 'Sécurité',
+      permission: 'users.manage'
     }
   ];
+
+  protected get featureItems() {
+    return this.allFeatureItems.filter((item) =>
+      Array.isArray(item.permission)
+        ? item.permission.some((permission) => this.currentUserService.has(permission))
+        : this.currentUserService.has(item.permission)
+    );
+  }
 
   private readonly weekdays: Array<{ dayOfWeek: number; label: string }> = [
     { dayOfWeek: 1, label: 'Lundi' },

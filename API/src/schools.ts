@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -23,7 +23,9 @@ type SchoolInput = {
   website?: string | null;
 };
 
-export default withAuthenticatedEndpoint('GET,POST,PUT,DELETE,OPTIONS', async ({ req, res, auth }) => {
+export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
+  GET: 'directory.read', POST: 'directory.manage', PUT: 'directory.manage', DELETE: 'directory.manage'
+}, async ({ req, res, auth }) => {
   try {
     const sql = neon(getEnv('DATABASE_URL'));
 

@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { withAuthenticatedEndpoint } from './lib/api-guards.js';
+import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
 
@@ -36,7 +36,9 @@ async function loadHolidays(sql: any, ownerId: string): Promise<SchoolHolidayRow
   return rows as SchoolHolidayRow[];
 }
 
-export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, auth }) => {
+export default withMethodPermissions('GET,POST,OPTIONS', {
+  GET: 'directory.read', POST: 'directory.manage'
+}, async ({ req, res, auth }) => {
   const sql = neon(getEnv('DATABASE_URL'));
 
   try {

@@ -8,6 +8,7 @@ import {
   type VerifiedAppJwt
 } from './app-jwt.js';
 import { applyCors, getCorsHeaders } from './cors.js';
+import { type AppPermission, hasPermission } from './permissions.js';
 import { enforceRateLimit, type RateLimitConfig } from './rate-limit.js';
 
 type RequestLike = {
@@ -181,5 +182,45 @@ export function withRoleProtectedEndpoint(
     }
 
     await handler({ req, res, auth });
+  }, options);
+}
+
+export function withPermissionEndpoint(
+  methods: string,
+  permission: AppPermission,
+  handler: (context: AuthenticatedContext) => Promise<void>,
+  options?: EndpointOptions
+) {
+  return withAuthenticatedEndpoint(methods, async (context) => {
+    if (!hasPermission(context.auth.role, permission)) {
+      context.res.status(403).json({
+        ok: false,
+        error: `Permission ${permission} is required.`
+      });
+      return;
+    }
+
+    await handler(context);
+  }, options);
+}
+
+export function withMethodPermissions(
+  methods: string,
+  permissions: Partial<Record<string, AppPermission>>,
+  handler: (context: AuthenticatedContext) => Promise<void>,
+  options?: EndpointOptions
+) {
+  return withAuthenticatedEndpoint(methods, async (context) => {
+    const permission = permissions[context.req.method ?? 'GET'];
+
+    if (permission && !hasPermission(context.auth.role, permission)) {
+      context.res.status(403).json({
+        ok: false,
+        error: `Permission ${permission} is required.`
+      });
+      return;
+    }
+
+    await handler(context);
   }, options);
 }
