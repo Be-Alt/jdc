@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
-async function loadHolidays(sql, ownerId) {
+async function loadHolidays(sql, organizationId) {
     const rows = await sql `
     select
       id::text as id,
@@ -10,7 +10,7 @@ async function loadHolidays(sql, ownerId) {
       starts_on::text as starts_on,
       ends_on::text as ends_on
     from public.school_holidays
-    where owner_id = ${ownerId}::uuid
+    where organization_id = ${organizationId}::uuid
     order by starts_on asc, ends_on asc, title asc
   `;
     return rows;
@@ -21,7 +21,7 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
     const sql = neon(getEnv('DATABASE_URL'));
     try {
         if (req.method === 'GET') {
-            const holidays = await loadHolidays(sql, auth.userId);
+            const holidays = await loadHolidays(sql, auth.organizationId);
             res.status(200).json({
                 ok: true,
                 data: holidays
@@ -48,25 +48,27 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
         }
         await sql `
       delete from public.school_holidays
-      where owner_id = ${auth.userId}::uuid
+      where organization_id = ${auth.organizationId}::uuid
     `;
         for (const holiday of normalized) {
             await sql `
         insert into public.school_holidays (
           owner_id,
+          organization_id,
           title,
           starts_on,
           ends_on
         )
         values (
           ${auth.userId}::uuid,
+          ${auth.organizationId}::uuid,
           ${holiday.title},
           ${holiday.startsOn}::date,
           ${holiday.endsOn}::date
         )
       `;
         }
-        const savedHolidays = await loadHolidays(sql, auth.userId);
+        const savedHolidays = await loadHolidays(sql, auth.organizationId);
         logger.info('school_holidays.saved', {
             userId: auth.userId,
             count: savedHolidays.length

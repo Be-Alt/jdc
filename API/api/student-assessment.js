@@ -5,12 +5,12 @@ import { logger } from './lib/logger.js';
 function getQueryParam(url, name) {
     return url ? new URL(url, 'http://localhost').searchParams.get(name)?.trim() || undefined : undefined;
 }
-async function enrollmentBelongsToOwner(sql, ownerId, enrollmentId, programId) {
+async function enrollmentBelongsToOrganization(sql, organizationId, enrollmentId, programId) {
     const rows = await sql `
     select 1
     from public.student_enrollments
     where id = ${enrollmentId}::uuid
-      and owner_id = ${ownerId}::uuid
+      and organization_id = ${organizationId}::uuid
       and program_id = ${programId}::uuid
     limit 1
   `;
@@ -26,7 +26,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
                 res.status(400).json({ ok: false, error: 'enrollmentId et programId sont obligatoires.' });
                 return;
             }
-            if (!(await enrollmentBelongsToOwner(sql, auth.userId, enrollmentId, programId))) {
+            if (!(await enrollmentBelongsToOrganization(sql, auth.organizationId, enrollmentId, programId))) {
                 res.status(404).json({ ok: false, error: 'Élève ou programme introuvable.' });
                 return;
             }
@@ -34,6 +34,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
         select item_type, item_id::text as item_id, status, updated_at::text as updated_at
         from public.student_competency_assessments
         where owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
           and student_enrollment_id = ${enrollmentId}::uuid
           and program_id = ${programId}::uuid
         order by item_type, item_id
@@ -49,7 +50,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
             res.status(400).json({ ok: false, error: 'enrollmentId et programId sont obligatoires.' });
             return;
         }
-        if (!(await enrollmentBelongsToOwner(sql, auth.userId, enrollmentId, programId))) {
+        if (!(await enrollmentBelongsToOrganization(sql, auth.organizationId, enrollmentId, programId))) {
             res.status(404).json({ ok: false, error: 'Élève ou programme introuvable.' });
             return;
         }
@@ -59,6 +60,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
         await sql `
       delete from public.student_competency_assessments
       where owner_id = ${auth.userId}::uuid
+        and organization_id = ${auth.organizationId}::uuid
         and student_enrollment_id = ${enrollmentId}::uuid
         and program_id = ${programId}::uuid
     `;
@@ -66,6 +68,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
             await sql `
         insert into public.student_competency_assessments (
           owner_id,
+          organization_id,
           student_enrollment_id,
           program_id,
           item_type,
@@ -74,6 +77,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'teaching.manage', asyn
         )
         values (
           ${auth.userId}::uuid,
+          ${auth.organizationId}::uuid,
           ${enrollmentId}::uuid,
           ${programId}::uuid,
           ${item.itemType},

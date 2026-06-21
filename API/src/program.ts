@@ -382,6 +382,7 @@ async function resolveMutationProgramId(
 async function assertProgramEditable(
   sql: any,
   userId: string,
+  organizationId: string,
   role: AppRole,
   programId: string
 ): Promise<void> {
@@ -389,10 +390,10 @@ async function assertProgramEditable(
     select owner_id::text as owner_id, is_shared
     from public.programs
     where id = ${programId}::uuid
+      and organization_id = ${organizationId}::uuid
       and (
         is_shared = true
         or owner_id = ${userId}::uuid
-        or ${role}::text = 'super_admin'
       )
     limit 1
   `;
@@ -450,6 +451,41 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
           return;
         }
 
+        const referenceRows = await sql`
+          select
+            exists (
+              select 1 from public.subjects
+              where id = ${subjectId}::uuid
+                and organization_id = ${auth.organizationId}::uuid
+            ) as subject_exists,
+            (
+              ${sectionId}::uuid is null
+              or exists (
+                select 1 from public.sections
+                where id = ${sectionId}::uuid
+                  and organization_id = ${auth.organizationId}::uuid
+              )
+            ) as section_exists,
+            exists (
+              select 1 from public.networks
+              where id = ${networkId}::uuid
+                and organization_id = ${auth.organizationId}::uuid
+            ) as network_exists
+        `;
+        const [references] = referenceRows as Array<{
+          subject_exists: boolean;
+          section_exists: boolean;
+          network_exists: boolean;
+        }>;
+
+        if (!references?.subject_exists || !references.section_exists || !references.network_exists) {
+          res.status(400).json({
+            ok: false,
+            error: 'Les références du programme doivent appartenir à ton organisation.'
+          });
+          return;
+        }
+
         const insertedRows = await sql`
           insert into public.programs (
             subject_id,
@@ -460,6 +496,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             valid_from,
             valid_to,
             owner_id,
+            organization_id,
             is_shared
           )
           values (
@@ -471,6 +508,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             ${validFrom}::date,
             ${validTo}::date,
             ${auth.userId}::uuid,
+            ${auth.organizationId}::uuid,
             ${isShared}
           )
           returning id::text as id
@@ -492,7 +530,13 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
 
       const mutationProgramId = await resolveMutationProgramId(sql, action, payload);
       if (mutationProgramId) {
-        await assertProgramEditable(sql, auth.userId, auth.role, mutationProgramId);
+        await assertProgramEditable(
+          sql,
+          auth.userId,
+          auth.organizationId,
+          auth.role,
+          mutationProgramId
+        );
       }
 
       if (action === 'update-program') {
@@ -522,6 +566,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             select section_id::text as section_id
             from public.programs
             where id = ${programId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
             limit 1
           `;
           const [existingProgram] = sectionRows as Array<{ section_id: string | null }>;
@@ -549,6 +594,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
               else ${requestedShared ?? null}::boolean
             end
           where id = ${programId}::uuid
+            and organization_id = ${auth.organizationId}::uuid
             and (
               ${requestedShared ?? null}::boolean is null
               or ${requestedShared ?? null}::boolean = false
@@ -870,10 +916,10 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
             from public.uaa u
             join public.programs p on p.id = u.program_id
             where u.id = ${uaaId}::uuid
+              and p.organization_id = ${auth.organizationId}::uuid
               and (
                 p.is_shared = true
                 or p.owner_id = ${auth.userId}::uuid
-                or ${auth.role}::text = 'super_admin'
               )
             limit 1
           `;
@@ -974,10 +1020,10 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
       left join public.uaa_competences c on c.uaa_id = u.id
       left join public.uaa_strategies st on st.uaa_id = u.id
       where p.id = ${programId}::uuid
+        and p.organization_id = ${auth.organizationId}::uuid
         and (
           p.is_shared = true
           or p.owner_id = ${auth.userId}::uuid
-          or ${auth.role}::text = 'super_admin'
         )
       order by u.code, pt.name, s.description, r.description, c.description, st.description
     `
@@ -1026,10 +1072,10 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
        and (${networkId}::uuid is null or p.network_id = ${networkId}::uuid)
        and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
        and (${programId}::uuid is null or p.id = ${programId}::uuid)
+       and p.organization_id = ${auth.organizationId}::uuid
        and (
          p.is_shared = true
          or p.owner_id = ${auth.userId}::uuid
-         or ${auth.role}::text = 'super_admin'
        )
       left join public.uaa u
         on u.program_id = p.id
@@ -1048,6 +1094,7 @@ export default withAuthenticatedEndpoint('GET,POST,OPTIONS', async ({ req, res, 
       left join public.uaa_strategies st
         on st.uaa_id = u.id
       where sec.id = ${sectionId}::uuid
+        and sec.organization_id = ${auth.organizationId}::uuid
       order by
         sec.level asc,
         sec.type asc,

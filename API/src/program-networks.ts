@@ -45,10 +45,10 @@ export default withPermissionEndpoint('GET,OPTIONS', 'programs.read', async ({ r
         on net.id = p.network_id
       where p.section_id = ${sectionId}::uuid
         and (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
+        and p.organization_id = ${auth.organizationId}::uuid
         and (
           p.is_shared = true
           or p.owner_id = ${auth.userId}::uuid
-          or ${auth.role}::text = 'super_admin'
         )
       order by net.code asc, net.name asc
     `;

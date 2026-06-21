@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { withMethodPermissions } from './lib/api-guards.js';
 import { getEnv } from './lib/env.js';
 import { logger } from './lib/logger.js';
-async function listTeachers(sql, userId) {
+async function listTeachers(sql, organizationId) {
     const rows = await sql `
     select
       t.id::text as id,
@@ -17,9 +17,11 @@ async function listTeachers(sql, userId) {
     from public.teachers t
     left join public.schools s
       on s.id = t.school_id
+     and s.organization_id = ${organizationId}::uuid
     left join public.subjects sub
       on sub.id = t.subject_id
-    where t.owner_id = ${userId}::uuid
+     and sub.organization_id = ${organizationId}::uuid
+    where t.organization_id = ${organizationId}::uuid
     order by t.last_name asc nulls last, t.first_name asc nulls last
   `;
     return rows;
@@ -30,7 +32,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
     const sql = neon(getEnv('DATABASE_URL'));
     try {
         if (req.method === 'GET') {
-            const teachers = await listTeachers(sql, auth.userId);
+            const teachers = await listTeachers(sql, auth.organizationId);
             res.status(200).json({
                 ok: true,
                 data: teachers
@@ -46,6 +48,38 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
         const phone = payload.phone?.trim() || null;
         const subjectId = payload.subjectId?.trim() || null;
         const legacySubject = payload.subject?.trim() || null;
+        if (schoolId) {
+            const schools = await sql `
+        select id
+        from public.schools
+        where id = ${schoolId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
+        limit 1
+      `;
+            if (schools.length === 0) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'L’école sélectionnée n’appartient pas à ton organisation.'
+                });
+                return;
+            }
+        }
+        if (subjectId) {
+            const subjects = await sql `
+        select id
+        from public.subjects
+        where id = ${subjectId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
+        limit 1
+      `;
+            if (subjects.length === 0) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'La matière sélectionnée n’appartient pas à ton organisation.'
+                });
+                return;
+            }
+        }
         if (req.method === 'POST') {
             if (!firstName || !lastName) {
                 res.status(400).json({
@@ -76,13 +110,13 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           ${subjectId}::uuid,
           ${legacySubject},
           ${auth.userId}::uuid,
-          null,
-          false
+          ${auth.organizationId}::uuid,
+          true
         )
         returning id::text as id
       `;
             const [created] = insertedRows;
-            const teachers = await listTeachers(sql, auth.userId);
+            const teachers = await listTeachers(sql, auth.organizationId);
             const teacher = teachers.find((item) => item.id === created.id) ?? null;
             logger.info('teachers.created', {
                 userId: auth.userId,
@@ -113,7 +147,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           subject_id = ${subjectId}::uuid,
           subject = ${legacySubject}
         where id = ${teacherId}::uuid
-          and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
             const [updated] = updatedRows;
@@ -124,7 +158,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
                 });
                 return;
             }
-            const teachers = await listTeachers(sql, auth.userId);
+            const teachers = await listTeachers(sql, auth.organizationId);
             const teacher = teachers.find((item) => item.id === updated.id) ?? null;
             logger.info('teachers.updated', {
                 userId: auth.userId,
@@ -147,7 +181,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
             const deletedRows = await sql `
         delete from public.teachers
         where id = ${teacherId}::uuid
-          and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
             const [deleted] = deletedRows;

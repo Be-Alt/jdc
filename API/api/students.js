@@ -53,7 +53,8 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
        and ssh.end_date is null
       left join public.schools sch
         on sch.id = ssh.school_id
-      where se.owner_id = ${auth.userId}::uuid
+       and sch.organization_id = ${auth.organizationId}::uuid
+      where se.organization_id = ${auth.organizationId}::uuid
         and (
           (${schoolYearId}::uuid is not null and se.school_year_id = ${schoolYearId}::uuid)
           or (${schoolYearLabel}::text is not null and sy.label = ${schoolYearLabel}::text)

@@ -56,13 +56,15 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
           code,
           level,
           type,
-          label
+          label,
+          organization_id
         )
         values (
           ${code},
           ${level},
           ${type},
-          ${label}
+          ${label},
+          ${auth.organizationId}::uuid
         )
         returning
           id::text as id,
@@ -104,16 +106,24 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
             select count(*)::int
             from public.student_enrollments
             where section_id = ${sectionId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
           ) as student_count,
           (
             select count(*)::int
             from public.programs
             where section_id = ${sectionId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
           ) as program_count,
           (
             select count(*)::int
             from public.class_session_students
             where section_id = ${sectionId}::uuid
+              and exists (
+                select 1
+                from public.student_enrollments se
+                where se.id = class_session_students.student_enrollment_id
+                  and se.organization_id = ${auth.organizationId}::uuid
+              )
           ) as journal_count
       `;
 
@@ -138,6 +148,7 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
       const deletedRows = await sql`
         delete from public.sections
         where id = ${sectionId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
 
@@ -179,6 +190,8 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
           inner join public.programs p
             on p.section_id = sec.id
           where p.subject_id = ${subjectId}::uuid
+            and p.organization_id = ${auth.organizationId}::uuid
+            and sec.organization_id = ${auth.organizationId}::uuid
           order by sec.level asc, sec.type asc, sec.code asc
         `
       : await sql`
@@ -189,6 +202,7 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
             type,
             label
           from public.sections
+          where organization_id = ${auth.organizationId}::uuid
           order by level asc, type asc, code asc
         `;
 

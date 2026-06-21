@@ -11,10 +11,11 @@ type UserRoleInput = {
 
 const roles: AppRole[] = ['super_admin', 'program_admin', 'direction_admin', 'teacher'];
 
-async function listUsers(sql: any) {
+async function listUsers(sql: any, organizationId: string) {
   return sql`
     select user_id, email, full_name, role, created_at::text, updated_at::text
     from public.profiles
+    where organization_id = ${organizationId}::uuid
     order by full_name asc nulls last, email asc
   `;
 }
@@ -23,7 +24,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'users.manage', async (
   const sql = neon(getEnv('DATABASE_URL'));
   try {
     if (req.method === 'GET') {
-      res.status(200).json({ ok: true, data: await listUsers(sql) });
+      res.status(200).json({ ok: true, data: await listUsers(sql, auth.organizationId) });
       return;
     }
 
@@ -45,6 +46,7 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'users.manage', async (
       update public.profiles
       set role = ${role}, updated_at = now()
       where user_id = ${userId}
+        and organization_id = ${auth.organizationId}::uuid
       returning user_id
     `;
     if (rows.length === 0) {
@@ -52,12 +54,19 @@ export default withPermissionEndpoint('GET,PUT,OPTIONS', 'users.manage', async (
       return;
     }
 
+    await sql`
+      update public.organization_members
+      set role = ${role === 'teacher' ? 'member' : 'admin'}
+      where organization_id = ${auth.organizationId}::uuid
+        and user_id = ${userId}::uuid
+    `;
+
     logger.info('users.role_updated', {
       actorUserId: auth.userId,
       targetUserId: userId,
       role
     });
-    res.status(200).json({ ok: true, data: await listUsers(sql) });
+    res.status(200).json({ ok: true, data: await listUsers(sql, auth.organizationId) });
   } catch (error) {
     logger.error('users.failed', error, { userId: auth.userId });
     res.status(500).json({

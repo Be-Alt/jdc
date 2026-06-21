@@ -38,7 +38,8 @@ export default withPublicEndpoint('GET,POST,OPTIONS', async ({ req, res }) => {
         userId: profile.userId,
         email: profile.email,
         name: profile.name,
-        role: profile.role
+        role: profile.role,
+        organizationId: profile.organizationId
       }
     });
   } catch (error) {

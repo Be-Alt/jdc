@@ -23,11 +23,12 @@ function getQueryParam(url: string | undefined, name: string): string | undefine
   return url ? new URL(url, 'http://localhost').searchParams.get(name)?.trim() || undefined : undefined;
 }
 
-async function assertEnrollmentOwner(sql: any, ownerId: string, enrollmentId: string): Promise<void> {
+async function assertEnrollmentAccess(sql: any, organizationId: string, enrollmentId: string): Promise<void> {
   const rows = await sql`
     select 1
     from public.student_enrollments
-    where id = ${enrollmentId}::uuid and owner_id = ${ownerId}::uuid
+    where id = ${enrollmentId}::uuid
+      and organization_id = ${organizationId}::uuid
     limit 1
   `;
   if (rows.length === 0) throw new Error('Élève introuvable.');
@@ -35,7 +36,7 @@ async function assertEnrollmentOwner(sql: any, ownerId: string, enrollmentId: st
 
 async function resolveTeacherId(
   sql: any,
-  ownerId: string,
+  organizationId: string,
   enrollmentId: string,
   teacherId: string | null | undefined
 ): Promise<string> {
@@ -53,7 +54,7 @@ async function resolveTeacherId(
      and ssh.end_date is null
      and ssh.school_id = t.school_id
     where t.id = ${normalizedTeacherId}::uuid
-      and t.owner_id = ${ownerId}::uuid
+      and t.organization_id = ${organizationId}::uuid
     limit 1
   `;
   const teacher = (rows as Array<{ id: string }>)[0];
@@ -61,8 +62,8 @@ async function resolveTeacherId(
   return teacher.id;
 }
 
-async function listStudentData(sql: any, ownerId: string, enrollmentId: string) {
-  await assertEnrollmentOwner(sql, ownerId, enrollmentId);
+async function listStudentData(sql: any, ownerId: string, organizationId: string, enrollmentId: string) {
+  await assertEnrollmentAccess(sql, organizationId, enrollmentId);
   const interactions = await sql`
     select
       sc.id::text as id,
@@ -79,6 +80,7 @@ async function listStudentData(sql: any, ownerId: string, enrollmentId: string) 
     from public.student_teacher_communications sc
     left join public.teachers t on t.id = sc.teacher_id
     where sc.owner_id = ${ownerId}::uuid
+      and sc.organization_id = ${organizationId}::uuid
       and sc.student_enrollment_id = ${enrollmentId}::uuid
     order by sc.occurred_on desc, sc.created_at desc
   `;
@@ -96,6 +98,7 @@ async function listStudentData(sql: any, ownerId: string, enrollmentId: string) 
     from public.student_teacher_communication_reminders r
     left join public.teachers t on t.id = r.teacher_id
     where r.owner_id = ${ownerId}::uuid
+      and r.organization_id = ${organizationId}::uuid
       and r.student_enrollment_id = ${enrollmentId}::uuid
     order by (r.completed_at is not null), r.due_date asc, r.created_at desc
   `;
@@ -127,6 +130,7 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
           join public.persons p on p.id = se.person_id
           left join public.teachers t on t.id = r.teacher_id
           where r.owner_id = ${auth.userId}::uuid
+            and r.organization_id = ${auth.organizationId}::uuid
             and r.completed_at is null
             and r.due_date <= current_date
           order by r.due_date asc, r.created_at asc
@@ -139,7 +143,10 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         res.status(400).json({ ok: false, error: 'enrollmentId est obligatoire.' });
         return;
       }
-      res.status(200).json({ ok: true, data: await listStudentData(sql, auth.userId, enrollmentId) });
+      res.status(200).json({
+        ok: true,
+        data: await listStudentData(sql, auth.userId, auth.organizationId, enrollmentId)
+      });
       return;
     }
 
@@ -153,20 +160,23 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         res.status(400).json({ ok: false, error: 'Élève, type et contenu sont obligatoires.' });
         return;
       }
-      await assertEnrollmentOwner(sql, auth.userId, enrollmentId);
-      const teacherId = await resolveTeacherId(sql, auth.userId, enrollmentId, payload.teacherId);
+      await assertEnrollmentAccess(sql, auth.organizationId, enrollmentId);
+      const teacherId = await resolveTeacherId(sql, auth.organizationId, enrollmentId, payload.teacherId);
       await sql`
         insert into public.student_teacher_communications (
-          owner_id, student_enrollment_id, teacher_id, direction, contact_name,
+          owner_id, organization_id, student_enrollment_id, teacher_id, direction, contact_name,
           contact_email, subject, content, occurred_on
         ) values (
-          ${auth.userId}::uuid, ${enrollmentId}::uuid, ${teacherId}::uuid,
+          ${auth.userId}::uuid, ${auth.organizationId}::uuid, ${enrollmentId}::uuid, ${teacherId}::uuid,
           ${payload.direction}, ${payload.contactName?.trim() || null},
           ${payload.contactEmail?.trim() || null}, ${payload.subject?.trim() || null},
           ${content}, coalesce(${payload.occurredOn?.trim() || null}::date, current_date)
         )
       `;
-      res.status(201).json({ ok: true, data: await listStudentData(sql, auth.userId, enrollmentId) });
+      res.status(201).json({
+        ok: true,
+        data: await listStudentData(sql, auth.userId, auth.organizationId, enrollmentId)
+      });
       return;
     }
 
@@ -177,18 +187,21 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         res.status(400).json({ ok: false, error: 'Élève et titre du rappel sont obligatoires.' });
         return;
       }
-      await assertEnrollmentOwner(sql, auth.userId, enrollmentId);
-      const teacherId = await resolveTeacherId(sql, auth.userId, enrollmentId, payload.teacherId);
+      await assertEnrollmentAccess(sql, auth.organizationId, enrollmentId);
+      const teacherId = await resolveTeacherId(sql, auth.organizationId, enrollmentId, payload.teacherId);
       await sql`
         insert into public.student_teacher_communication_reminders (
-          owner_id, student_enrollment_id, teacher_id, title, notes, due_date
+          owner_id, organization_id, student_enrollment_id, teacher_id, title, notes, due_date
         ) values (
-          ${auth.userId}::uuid, ${enrollmentId}::uuid, ${teacherId}::uuid,
+          ${auth.userId}::uuid, ${auth.organizationId}::uuid, ${enrollmentId}::uuid, ${teacherId}::uuid,
           ${title}, ${payload.notes?.trim() || null},
           coalesce(${payload.dueDate?.trim() || null}::date, current_date)
         )
       `;
-      res.status(201).json({ ok: true, data: await listStudentData(sql, auth.userId, enrollmentId) });
+      res.status(201).json({
+        ok: true,
+        data: await listStudentData(sql, auth.userId, auth.organizationId, enrollmentId)
+      });
       return;
     }
 
@@ -202,12 +215,16 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         await sql`
           update public.student_teacher_communication_reminders
           set completed_at = case when completed_at is null then now() else null end
-          where id = ${reminderId}::uuid and owner_id = ${auth.userId}::uuid
+          where id = ${reminderId}::uuid
+            and owner_id = ${auth.userId}::uuid
+            and organization_id = ${auth.organizationId}::uuid
         `;
       } else {
         await sql`
           delete from public.student_teacher_communication_reminders
-          where id = ${reminderId}::uuid and owner_id = ${auth.userId}::uuid
+          where id = ${reminderId}::uuid
+            and owner_id = ${auth.userId}::uuid
+            and organization_id = ${auth.organizationId}::uuid
         `;
       }
       res.status(200).json({ ok: true, data: { reminderId } });

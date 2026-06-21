@@ -30,7 +30,9 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           postal_code,
           country,
           website,
-          owner_id
+          owner_id,
+          organization_id,
+          is_shared_with_org
         )
         values (
           ${name},
@@ -39,7 +41,9 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           ${postalCode},
           ${country},
           ${website},
-          ${auth.userId}::uuid
+          ${auth.userId}::uuid,
+          ${auth.organizationId}::uuid,
+          true
         )
         returning
           id::text as id,
@@ -87,7 +91,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           country = ${country},
           website = ${website}
         where id = ${schoolId}::uuid
-          and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning
           id::text as id,
           name,
@@ -128,12 +132,17 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
             await sql `
         update public.student_school_history
         set school_id = null
-        where school_id = ${schoolId}::uuid
+        where school_id in (
+          select id
+          from public.schools
+          where id = ${schoolId}::uuid
+            and organization_id = ${auth.organizationId}::uuid
+        )
       `;
             const deletedRows = await sql `
         delete from public.schools
         where id = ${schoolId}::uuid
-          and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
             const [deletedSchool] = deletedRows;
@@ -166,7 +175,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
         country,
         website
       from public.schools
-      where owner_id = ${auth.userId}::uuid
+      where organization_id = ${auth.organizationId}::uuid
       order by name asc
     `;
         logger.info('schools.list', {

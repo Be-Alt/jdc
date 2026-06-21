@@ -17,5 +17,6 @@ export type CurrentAppUser = {
   email: string;
   name: string | null;
   role: AppRole;
+  organizationId: string;
   permissions: AppPermission[];
 };

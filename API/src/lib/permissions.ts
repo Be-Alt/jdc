@@ -12,20 +12,27 @@ export type AppPermission =
   | 'schedules.manage'
   | 'teaching.manage';
 
+const teacherPermissions: AppPermission[] = [
+  'programs.read',
+  'programs.personal_manage',
+  'directory.read',
+  'students.read',
+  'students.manage',
+  'schedules.manage',
+  'teaching.manage'
+];
+
 const rolePermissions: Record<AppRole, AppPermission[]> = {
   super_admin: [
+    ...teacherPermissions,
     'users.manage',
-    'programs.read',
     'programs.manage',
-    'programs.personal_manage',
-    'directory.read',
     'directory.manage',
-    'students.read',
-    'students.manage',
-    'schedules.manage',
-    'teaching.manage'
   ],
-  program_admin: ['programs.read', 'programs.manage', 'programs.personal_manage'],
+  program_admin: [
+    ...teacherPermissions,
+    'programs.manage'
+  ],
   direction_admin: [
     'programs.read',
     'directory.read',
@@ -34,15 +41,7 @@ const rolePermissions: Record<AppRole, AppPermission[]> = {
     'students.manage',
     'schedules.manage'
   ],
-  teacher: [
-    'programs.read',
-    'programs.personal_manage',
-    'directory.read',
-    'students.read',
-    'students.manage',
-    'schedules.manage',
-    'teaching.manage'
-  ]
+  teacher: teacherPermissions
 };
 
 export function hasPermission(role: AppRole, permission: AppPermission): boolean {

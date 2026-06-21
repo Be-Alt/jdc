@@ -12,7 +12,7 @@ function isMissingRelationError(error: unknown, relationName: string): boolean {
   return databaseError?.code === '42P01' && databaseError.message?.includes(relationName) === true;
 }
 
-async function loadAttendance(sql: any, ownerId: string, enrollmentId: string, useClassSessions: boolean) {
+async function loadAttendance(sql: any, organizationId: string, enrollmentId: string, useClassSessions: boolean) {
   const rows = useClassSessions
     ? await sql`
         select
@@ -21,8 +21,9 @@ async function loadAttendance(sql: any, ownerId: string, enrollmentId: string, u
           count(*) filter (where css.status = 'present')::int as attended
         from public.class_session_students css
         join public.class_sessions cs on cs.id = css.session_id
+        join public.student_enrollments se on se.id = css.student_enrollment_id
         where css.student_enrollment_id = ${enrollmentId}::uuid
-          and cs.owner_id = ${ownerId}::uuid
+          and se.organization_id = ${organizationId}::uuid
           and cs.teacher_is_absent = false
         group by to_char(cs.session_date, 'YYYY-MM')
         order by month
@@ -34,8 +35,10 @@ async function loadAttendance(sql: any, ownerId: string, enrollmentId: string, u
           count(*) filter (where css.status = 'present')::int as attended
         from public.class_session_students css
         join public.class_journal_entries cje on cje.id = css.session_id
+        join public.student_enrollments se on se.id = css.student_enrollment_id
         where css.student_enrollment_id = ${enrollmentId}::uuid
-          and cje.owner_id = ${ownerId}::uuid
+          and cje.organization_id = ${organizationId}::uuid
+          and se.organization_id = ${organizationId}::uuid
           and cje.teacher_is_absent = false
         group by to_char(cje.entry_date, 'YYYY-MM')
         order by month
@@ -61,7 +64,7 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
       select se.program_id::text as program_id
       from public.student_enrollments se
       where se.id = ${enrollmentId}::uuid
-        and se.owner_id = ${auth.userId}::uuid
+        and se.organization_id = ${auth.organizationId}::uuid
       limit 1
     `;
     const enrollment = (enrollmentRows as Array<{ program_id: string | null }>)[0];
@@ -101,6 +104,7 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
         left join public.uaa_competences c on c.uaa_id = u.id
         left join public.uaa_strategies st on st.uaa_id = u.id
         where p.id = ${enrollment.program_id}::uuid
+          and p.organization_id = ${auth.organizationId}::uuid
           and (p.is_shared = true or p.owner_id = ${auth.userId}::uuid)
         order by u.code, pt.name, s.description, r.description
       `;
@@ -192,10 +196,10 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
 
     let points;
     try {
-      points = await loadAttendance(sql, auth.userId, enrollmentId, true);
+      points = await loadAttendance(sql, auth.organizationId, enrollmentId, true);
     } catch (error) {
       if (!isMissingRelationError(error, 'class_sessions')) throw error;
-      points = await loadAttendance(sql, auth.userId, enrollmentId, false);
+      points = await loadAttendance(sql, auth.organizationId, enrollmentId, false);
     }
     const total = points.reduce((sum, point) => sum + point.total, 0);
     const attended = points.reduce((sum, point) => sum + point.attended, 0);

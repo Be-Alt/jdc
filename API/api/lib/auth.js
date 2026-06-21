@@ -48,21 +48,29 @@ export async function getProfileRecord(user) {
       user_id,
       email,
       full_name,
-      role
+      role,
+      organization_id::text as organization_id
     from public.profiles
     where user_id = ${user.userId}
       and email = ${user.email}
+      and exists (
+        select 1
+        from public.organization_members om
+        where om.organization_id = profiles.organization_id
+          and om.user_id = ${user.userId}::uuid
+      )
     limit 1
   `;
     const [row] = result;
-    if (!row) {
+    if (!row?.organization_id) {
         throw new Error('Profile not found. Sync the profile first.');
     }
     return {
         userId: row.user_id,
         email: row.email,
         name: row.full_name,
-        role: normalizeAppRole(row.role)
+        role: normalizeAppRole(row.role),
+        organizationId: row.organization_id
     };
 }
 export async function requireAllowedRole(user, allowedRoles) {
@@ -92,13 +100,58 @@ export function getCookieHeader(headers) {
 }
 export async function upsertProfile(user) {
     const sql = neon(getEnv('DATABASE_URL'));
-    await sql `
-    insert into public.profiles (user_id, email, full_name)
-    values (${user.userId}, ${user.email}, ${user.name})
+    const domain = user.email.split('@')[1]?.toLowerCase();
+    if (!domain) {
+        throw new Error('Email domain is missing.');
+    }
+    const rows = await sql `
+    insert into public.profiles (user_id, email, full_name, organization_id)
+    select
+      ${user.userId},
+      ${user.email},
+      ${user.name},
+      coalesce(
+        (
+          select p.organization_id
+          from public.profiles p
+          where p.user_id = ${user.userId}
+        ),
+        (
+          select om.organization_id
+          from public.organization_members om
+          where ${user.userId} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+            and om.user_id = ${user.userId}::uuid
+          order by om.created_at
+          limit 1
+        ),
+        (
+          select aed.organization_id
+          from public.allowed_email_domains aed
+          where lower(aed.domain) = ${domain}
+            and aed.active = true
+            and aed.organization_id is not null
+          limit 1
+        )
+      )
     on conflict (user_id) do update
     set
       email = excluded.email,
       full_name = excluded.full_name,
       updated_at = now()
+    returning user_id
+  `;
+    if (rows.length === 0) {
+        throw new Error('No organization is configured for this user.');
+    }
+    await sql `
+    insert into public.organization_members (organization_id, user_id, role)
+    select
+      organization_id,
+      user_id::uuid,
+      case when role in ('super_admin', 'program_admin', 'direction_admin') then 'admin' else 'member' end
+    from public.profiles
+    where user_id = ${user.userId}
+    on conflict (organization_id, user_id) do update
+    set role = excluded.role
   `;
 }

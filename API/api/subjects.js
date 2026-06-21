@@ -21,10 +21,12 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
             }
             const insertedRows = await sql `
         insert into public.subjects (
-          name
+          name,
+          organization_id
         )
         values (
-          ${name}
+          ${name},
+          ${auth.organizationId}::uuid
         )
         returning
           id::text as id,
@@ -57,11 +59,13 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
             select count(*)::int
             from public.teachers
             where subject_id = ${subjectId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
           ) as teacher_count,
           (
             select count(*)::int
             from public.programs
             where subject_id = ${subjectId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
           ) as program_count
       `;
             const [usage] = usageRows;
@@ -76,6 +80,7 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
             const deletedRows = await sql `
         delete from public.subjects
         where id = ${subjectId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
             const [deletedSubject] = deletedRows;
@@ -103,6 +108,7 @@ export default withMethodPermissions('GET,POST,DELETE,OPTIONS', {
         id::text as id,
         name
       from public.subjects
+      where organization_id = ${auth.organizationId}::uuid
       order by name asc
     `;
         logger.info('subjects.list', {

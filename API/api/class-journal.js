@@ -33,7 +33,7 @@ function isMissingRelationError(error, relationName) {
     const databaseError = error;
     return databaseError.code === '42P01' && databaseError.message?.includes(relationName) === true;
 }
-async function loadEntriesByDateFromClassSessions(sql, ownerId, entryDate) {
+async function loadEntriesByDateFromClassSessions(sql, ownerId, organizationId, entryDate) {
     const rows = await sql `
     select
       cs.id::text as id,
@@ -93,12 +93,13 @@ async function loadEntriesByDateFromClassSessions(sql, ownerId, entryDate) {
       where css.session_id = cs.id
     ) students on true
     where cs.owner_id = ${ownerId}::uuid
+      and cs.organization_id = ${organizationId}::uuid
       and cs.session_date = ${entryDate}::date
     order by cs.starts_at asc, cs.title asc
   `;
     return rows;
 }
-async function loadEntriesByDateFromLegacyEntries(sql, ownerId, entryDate) {
+async function loadEntriesByDateFromLegacyEntries(sql, ownerId, organizationId, entryDate) {
     const rows = await sql `
     select
       cje.id::text as id,
@@ -158,23 +159,24 @@ async function loadEntriesByDateFromLegacyEntries(sql, ownerId, entryDate) {
       where css.session_id = cje.id
     ) students on true
     where cje.owner_id = ${ownerId}::uuid
+      and cje.organization_id = ${organizationId}::uuid
       and cje.entry_date = ${entryDate}::date
     order by cje.starts_at asc, cje.title asc
   `;
     return rows;
 }
-async function loadEntriesByDate(sql, ownerId, entryDate) {
+async function loadEntriesByDate(sql, ownerId, organizationId, entryDate) {
     try {
-        return await loadEntriesByDateFromClassSessions(sql, ownerId, entryDate);
+        return await loadEntriesByDateFromClassSessions(sql, ownerId, organizationId, entryDate);
     }
     catch (error) {
         if (!isMissingRelationError(error, 'class_sessions')) {
             throw error;
         }
-        return loadEntriesByDateFromLegacyEntries(sql, ownerId, entryDate);
+        return loadEntriesByDateFromLegacyEntries(sql, ownerId, organizationId, entryDate);
     }
 }
-async function assertSlotBelongsToOwner(sql, ownerId, weeklyScheduleSlotId) {
+async function assertSlotBelongsToOwner(sql, ownerId, organizationId, weeklyScheduleSlotId) {
     const rows = await sql `
     select wss.id::text as id
     from public.weekly_schedule_slots wss
@@ -182,6 +184,7 @@ async function assertSlotBelongsToOwner(sql, ownerId, weeklyScheduleSlotId) {
       on wsc.id = wss.config_id
     where wss.id = ${weeklyScheduleSlotId}::uuid
       and wsc.owner_id = ${ownerId}::uuid
+      and wsc.organization_id = ${organizationId}::uuid
     limit 1
   `;
     return rows.length > 0;
@@ -190,6 +193,7 @@ async function upsertSessionIntoClassSessions(sql, input) {
     const upsertedSessions = await sql `
     insert into public.class_sessions (
       owner_id,
+      organization_id,
       session_date,
       weekly_schedule_slot_id,
       slot_key,
@@ -201,6 +205,7 @@ async function upsertSessionIntoClassSessions(sql, input) {
     )
     values (
       ${input.ownerId}::uuid,
+      ${input.organizationId}::uuid,
       ${input.date}::date,
       ${input.weeklyScheduleSlotId}::uuid,
       ${input.slotKey},
@@ -213,6 +218,7 @@ async function upsertSessionIntoClassSessions(sql, input) {
     on conflict (owner_id, session_date, slot_key)
     do update set
       weekly_schedule_slot_id = excluded.weekly_schedule_slot_id,
+      organization_id = excluded.organization_id,
       title = excluded.title,
       starts_at = excluded.starts_at,
       ends_at = excluded.ends_at,
@@ -226,6 +232,7 @@ async function upsertSessionIntoLegacyEntries(sql, input) {
     const upsertedEntries = await sql `
     insert into public.class_journal_entries (
       owner_id,
+      organization_id,
       entry_date,
       weekly_schedule_slot_id,
       slot_key,
@@ -237,6 +244,7 @@ async function upsertSessionIntoLegacyEntries(sql, input) {
     )
     values (
       ${input.ownerId}::uuid,
+      ${input.organizationId}::uuid,
       ${input.date}::date,
       ${input.weeklyScheduleSlotId}::uuid,
       ${input.slotKey},
@@ -249,6 +257,7 @@ async function upsertSessionIntoLegacyEntries(sql, input) {
     on conflict (owner_id, entry_date, slot_key)
     do update set
       weekly_schedule_slot_id = excluded.weekly_schedule_slot_id,
+      organization_id = excluded.organization_id,
       title = excluded.title,
       starts_at = excluded.starts_at,
       ends_at = excluded.ends_at,
@@ -281,7 +290,7 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
                 });
                 return;
             }
-            const entries = await loadEntriesByDate(sql, auth.userId, date);
+            const entries = await loadEntriesByDate(sql, auth.userId, auth.organizationId, date);
             res.status(200).json({
                 ok: true,
                 data: entries
@@ -327,7 +336,8 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
             });
             return;
         }
-        if (weeklyScheduleSlotId && !(await assertSlotBelongsToOwner(sql, auth.userId, weeklyScheduleSlotId))) {
+        if (weeklyScheduleSlotId &&
+            !(await assertSlotBelongsToOwner(sql, auth.userId, auth.organizationId, weeklyScheduleSlotId))) {
             res.status(404).json({
                 ok: false,
                 error: 'Weekly schedule slot not found.'
@@ -336,6 +346,7 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         }
         const sessionId = await upsertSession(sql, {
             ownerId: auth.userId,
+            organizationId: auth.organizationId,
             date,
             weeklyScheduleSlotId,
             slotKey,
@@ -381,7 +392,34 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
           ${studentEntry.emotionalWellbeingLevel}
         from public.student_enrollments se
         where se.id = ${studentEntry.studentEnrollmentId}::uuid
-          and se.owner_id = ${auth.userId}::uuid
+          and se.organization_id = ${auth.organizationId}::uuid
+          and (
+            ${studentEntry.sectionId}::uuid is null
+            or exists (
+              select 1
+              from public.sections sec
+              where sec.id = ${studentEntry.sectionId}::uuid
+                and sec.organization_id = ${auth.organizationId}::uuid
+            )
+          )
+          and (
+            ${studentEntry.networkId}::uuid is null
+            or exists (
+              select 1
+              from public.networks net
+              where net.id = ${studentEntry.networkId}::uuid
+                and net.organization_id = ${auth.organizationId}::uuid
+            )
+          )
+          and (
+            ${studentEntry.programId}::uuid is null
+            or exists (
+              select 1
+              from public.programs prog
+              where prog.id = ${studentEntry.programId}::uuid
+                and prog.organization_id = ${auth.organizationId}::uuid
+            )
+          )
         returning student_enrollment_id::text as student_enrollment_id
       `;
             if (!insertedStudents.length) {
@@ -392,7 +430,10 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
           insert into public.class_session_student_skills (session_id, student_enrollment_id, skill_id)
           select ${sessionId}::uuid, ${studentEntry.studentEnrollmentId}::uuid, s.id
           from public.skills s
+          join public.uaa u on u.id = s.uaa_id
+          join public.programs p on p.id = u.program_id
           where s.id = ${skillId}::uuid
+            and p.organization_id = ${auth.organizationId}::uuid
           on conflict do nothing
         `;
             }
@@ -401,7 +442,10 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
           insert into public.class_session_student_resources (session_id, student_enrollment_id, resource_id)
           select ${sessionId}::uuid, ${studentEntry.studentEnrollmentId}::uuid, r.id
           from public.resources r
+          join public.uaa u on u.id = r.uaa_id
+          join public.programs p on p.id = u.program_id
           where r.id = ${resourceId}::uuid
+            and p.organization_id = ${auth.organizationId}::uuid
           on conflict do nothing
         `;
             }
@@ -422,7 +466,7 @@ export default withPermissionEndpoint('GET,POST,OPTIONS', 'teaching.manage', asy
         `;
             }
         }
-        const entries = await loadEntriesByDate(sql, auth.userId, date);
+        const entries = await loadEntriesByDate(sql, auth.userId, auth.organizationId, date);
         const savedEntry = entries.find((item) => item.id === sessionId) ?? null;
         logger.info('class_journal.saved', {
             userId: auth.userId,

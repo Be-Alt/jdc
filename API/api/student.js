@@ -78,6 +78,7 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
         on sec.id = se.section_id
       left join public.programs prog
         on prog.id = se.program_id
+       and prog.organization_id = ${auth.organizationId}::uuid
       left join public.subjects prog_sub
         on prog_sub.id = prog.subject_id
       left join public.networks prog_net
@@ -87,10 +88,12 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
        and ssh.end_date is null
       left join public.schools sch
         on sch.id = ssh.school_id
+       and sch.organization_id = ${auth.organizationId}::uuid
       left join public.student_teachers st
         on st.student_enrollment_id = se.id
       left join public.teachers t
         on t.id = st.teacher_id
+       and t.organization_id = ${auth.organizationId}::uuid
       left join public.student_dys sd
         on sd.student_id = p.id
       left join public.dys_types dt
@@ -99,7 +102,7 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
         on sa.student_id = p.id
       left join public.accommodations acc
         on acc.id = sa.accommodation_id
-      where se.owner_id = ${auth.userId}::uuid
+      where se.organization_id = ${auth.organizationId}::uuid
         and se.id = ${enrollmentId}::uuid
       group by
         se.id,

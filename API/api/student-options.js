@@ -28,7 +28,8 @@ export default withPermissionEndpoint('GET,OPTIONS', 'students.read', async ({ r
         on sec.id = se.section_id
       left join public.programs prog
         on prog.id = se.program_id
-      where se.owner_id = ${auth.userId}::uuid
+       and prog.organization_id = ${auth.organizationId}::uuid
+      where se.organization_id = ${auth.organizationId}::uuid
       order by p.last_name asc, p.first_name asc
     `;
         logger.info('student_options.list', {

@@ -44,7 +44,7 @@ type WeeklyScheduleSlotRow = {
   student_enrollment_ids: string[];
 };
 
-async function loadSchedule(sql: any, ownerId: string) {
+async function loadSchedule(sql: any, ownerId: string, organizationId: string) {
   const configs = await sql`
     select
       id::text as id,
@@ -55,6 +55,7 @@ async function loadSchedule(sql: any, ownerId: string) {
       is_shared_with_org
     from public.weekly_schedule_configs
     where owner_id = ${ownerId}::uuid
+      and organization_id = ${organizationId}::uuid
     order by valid_from desc, created_at desc
     limit 1
   `;
@@ -102,7 +103,7 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
 
   try {
     if (req.method === 'GET') {
-      const schedule = await loadSchedule(sql, auth.userId);
+      const schedule = await loadSchedule(sql, auth.userId, auth.organizationId);
 
       res.status(200).json({
         ok: true,
@@ -181,9 +182,27 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
         });
         return;
       }
+
+      if (slot.subjectId) {
+        const subjectRows = await sql`
+          select id
+          from public.subjects
+          where id = ${slot.subjectId}::uuid
+            and organization_id = ${auth.organizationId}::uuid
+          limit 1
+        `;
+
+        if (subjectRows.length === 0) {
+          res.status(400).json({
+            ok: false,
+            error: 'Une matière sélectionnée n’appartient pas à ton organisation.'
+          });
+          return;
+        }
+      }
     }
 
-    const organizationId: string | null = null;
+    const organizationId = auth.organizationId;
 
     let savedConfigId = configId;
 
@@ -198,6 +217,7 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
           organization_id = ${organizationId}::uuid
         where id = ${savedConfigId}::uuid
           and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
 
@@ -288,13 +308,13 @@ export default withMethodPermissions('GET,POST,OPTIONS', {
               se.id
             from public.student_enrollments se
             where se.id = ${studentEnrollmentId}::uuid
-              and se.owner_id = ${auth.userId}::uuid
+              and se.organization_id = ${auth.organizationId}::uuid
           `;
         }
       }
     }
 
-    const schedule = await loadSchedule(sql, auth.userId);
+    const schedule = await loadSchedule(sql, auth.userId, auth.organizationId);
 
     logger.info('weekly_schedule.saved', {
       userId: auth.userId,

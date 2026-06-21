@@ -25,7 +25,7 @@ export default withPermissionEndpoint('GET,OPTIONS', 'programs.read', async ({ r
       from public.school_years sy
       left join public.student_enrollments se
         on se.school_year_id = sy.id
-        and se.owner_id = ${auth.userId}::uuid
+        and se.organization_id = ${auth.organizationId}::uuid
       group by sy.id, sy.label, sy.start_date, sy.end_date
       order by
         sy.start_date desc nulls last,

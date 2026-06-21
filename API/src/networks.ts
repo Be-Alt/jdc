@@ -44,12 +44,14 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
         insert into public.networks (
           code,
           name,
-          url
+          url,
+          organization_id
         )
         values (
           ${code},
           ${name},
-          ${url}
+          ${url},
+          ${auth.organizationId}::uuid
         )
         returning
           id::text as id,
@@ -94,6 +96,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
           name = ${name},
           url = ${url}
         where id = ${networkId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning
           id::text as id,
           code,
@@ -141,11 +144,18 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
             select count(*)::int
             from public.programs
             where network_id = ${networkId}::uuid
+              and organization_id = ${auth.organizationId}::uuid
           ) as program_count,
           (
             select count(*)::int
             from public.class_session_students
             where network_id = ${networkId}::uuid
+              and exists (
+                select 1
+                from public.student_enrollments se
+                where se.id = class_session_students.student_enrollment_id
+                  and se.organization_id = ${auth.organizationId}::uuid
+              )
           ) as journal_count
       `;
 
@@ -166,6 +176,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
       const deletedRows = await sql`
         delete from public.networks
         where id = ${networkId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
         returning id::text as id
       `;
 
@@ -200,6 +211,7 @@ export default withMethodPermissions('GET,POST,PUT,DELETE,OPTIONS', {
         name,
         url
       from public.networks
+      where organization_id = ${auth.organizationId}::uuid
       order by code asc, name asc
     `;
 

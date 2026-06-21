@@ -38,6 +38,38 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
         }
         const sql = neon(getEnv('DATABASE_URL'));
         let programId = null;
+        if (sectionId) {
+            const sectionRows = await sql `
+        select id
+        from public.sections
+        where id = ${sectionId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
+        limit 1
+      `;
+            if (sectionRows.length === 0) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'La section sélectionnée n’appartient pas à ton organisation.'
+                });
+                return;
+            }
+        }
+        if (schoolId) {
+            const schoolRows = await sql `
+        select id::text as id
+        from public.schools
+        where id = ${schoolId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
+        limit 1
+      `;
+            if (schoolRows.length === 0) {
+                res.status(400).json({
+                    ok: false,
+                    error: 'L’école sélectionnée n’appartient pas à ton organisation.'
+                });
+                return;
+            }
+        }
         if (requestedProgramId) {
             if (!sectionId) {
                 res.status(400).json({
@@ -51,6 +83,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
         from public.programs
         where id = ${requestedProgramId}::uuid
           and section_id = ${sectionId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
           and (is_shared = true or owner_id = ${auth.userId}::uuid)
         limit 1
       `;
@@ -73,7 +106,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
           se.is_shared_with_org
         from public.student_enrollments se
         where se.id = ${enrollmentId}::uuid
-          and se.owner_id = ${auth.userId}::uuid
+          and se.organization_id = ${auth.organizationId}::uuid
         limit 1
       `;
             const [existingStudent] = existingRows;
@@ -91,7 +124,6 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
           last_name = ${lastName},
           birth_date = ${birthDate}::date
         where id = ${existingStudent.person_id}::uuid
-          and owner_id = ${auth.userId}::uuid
       `;
             await sql `
         update public.student_enrollments
@@ -101,7 +133,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
           program_id = ${programId}::uuid,
           status = ${status}
         where id = ${enrollmentId}::uuid
-          and owner_id = ${auth.userId}::uuid
+          and organization_id = ${auth.organizationId}::uuid
       `;
             const activeSchoolRows = await sql `
         select id
@@ -149,7 +181,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
                 const validTeacherRows = await sql `
           select id::text as id
           from public.teachers
-          where owner_id = ${auth.userId}::uuid
+          where organization_id = ${auth.organizationId}::uuid
             and school_id = ${schoolId}::uuid
             and id = any(${teacherIds}::uuid[])
         `;
@@ -252,7 +284,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
         ${programId}::uuid,
         ${status},
         ${auth.userId}::uuid,
-        null,
+        ${auth.organizationId}::uuid,
         false
       )
       returning id::text as id
@@ -262,7 +294,7 @@ export default withPermissionEndpoint('POST,OPTIONS', 'students.manage', async (
             const validTeacherRows = await sql `
         select id::text as id
         from public.teachers
-        where owner_id = ${auth.userId}::uuid
+        where organization_id = ${auth.organizationId}::uuid
           and school_id = ${schoolId}::uuid
           and id = any(${teacherIds}::uuid[])
       `;

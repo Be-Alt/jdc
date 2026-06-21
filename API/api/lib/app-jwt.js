@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getEnv, getOptionalEnv } from './env.js';
-import { normalizeAppRole } from './auth.js';
+import { getProfileRecord, normalizeAppRole } from './auth.js';
 const ACCESS_COOKIE_NAME = 'app_access';
 const REFRESH_COOKIE_NAME = 'app_refresh';
 const ACCESS_TTL_SECONDS = 60 * 15;
@@ -37,6 +37,7 @@ function createToken(profile, tokenType, ttlSeconds) {
         email: profile.email,
         name: profile.name,
         role: profile.role,
+        organizationId: profile.organizationId,
         type: tokenType,
         iat: now,
         exp: now + ttlSeconds
@@ -133,26 +134,33 @@ export function verifyAppJwt(token, expectedType = 'access') {
     if (payload.exp <= now) {
         throw new Error('JWT expired.');
     }
+    if (!payload.organizationId) {
+        throw new Error('JWT organization is missing.');
+    }
     return {
         userId: payload.sub,
         email: payload.email,
         name: payload.name,
         role: normalizeAppRole(payload.role),
+        organizationId: payload.organizationId,
         tokenType: payload.type
     };
 }
-export function refreshAppSession(refreshToken) {
+export async function refreshAppSession(refreshToken) {
     const refreshAuth = verifyAppJwt(refreshToken, 'refresh');
-    const profile = {
+    const profile = await getProfileRecord({
         userId: refreshAuth.userId,
         email: refreshAuth.email,
-        name: refreshAuth.name,
-        role: refreshAuth.role
-    };
+        name: refreshAuth.name
+    });
     const session = createAppSession(profile);
     return {
         auth: {
-            ...refreshAuth,
+            userId: profile.userId,
+            email: profile.email,
+            name: profile.name,
+            role: profile.role,
+            organizationId: profile.organizationId,
             tokenType: 'access'
         },
         refreshedCookies: createAppSessionCookies(session)

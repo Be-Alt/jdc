@@ -1,4 +1,4 @@
-import { getBearerToken, getCookieHeader, type AppRole } from './auth.js';
+import { getBearerToken, getCookieHeader, getProfileRecord, type AppRole } from './auth.js';
 import {
   getAccessTokenFromCookieHeader,
   getRefreshTokenFromCookieHeader,
@@ -92,14 +92,31 @@ function setCookies(res: ResponseLike, cookies: string[]): void {
   }
 }
 
-export function requireAppSession(req: RequestLike): AppSessionRefreshResult {
+async function refreshVerifiedAuth(auth: VerifiedAppJwt): Promise<VerifiedAppJwt> {
+  const profile = await getProfileRecord({
+    userId: auth.userId,
+    email: auth.email,
+    name: auth.name
+  });
+
+  return {
+    userId: profile.userId,
+    email: profile.email,
+    name: profile.name,
+    role: profile.role,
+    organizationId: profile.organizationId,
+    tokenType: 'access'
+  };
+}
+
+export async function requireAppSession(req: RequestLike): Promise<AppSessionRefreshResult> {
   const cookieHeader = getCookieHeader(req.headers);
   const accessToken = getAccessTokenFromCookieHeader(cookieHeader);
 
   if (accessToken) {
     try {
       return {
-        auth: verifyAppJwt(accessToken, 'access')
+        auth: await refreshVerifiedAuth(verifyAppJwt(accessToken, 'access'))
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
@@ -113,13 +130,13 @@ export function requireAppSession(req: RequestLike): AppSessionRefreshResult {
   const refreshToken = getRefreshTokenFromCookieHeader(cookieHeader);
 
   if (refreshToken) {
-    return refreshAppSession(refreshToken);
+    return await refreshAppSession(refreshToken);
   }
 
   const bearerToken = getBearerToken(req.headers);
 
   return {
-    auth: verifyAppJwt(bearerToken, 'access')
+    auth: await refreshVerifiedAuth(verifyAppJwt(bearerToken, 'access'))
   };
 }
 
@@ -130,7 +147,7 @@ export function withAuthenticatedEndpoint(
 ) {
   return withPublicEndpoint(methods, async ({ req, res }) => {
     try {
-      const session = requireAppSession(req);
+      const session = await requireAppSession(req);
       setCookies(res, session.refreshedCookies ?? []);
 
       if (options?.rateLimit) {
@@ -156,7 +173,13 @@ export function withAuthenticatedEndpoint(
       await handler({ req, res, auth: session.auth });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
-      const status = message.includes('token') || message.includes('JWT') ? 401 : 400;
+      const status =
+        message.includes('token') ||
+        message.includes('JWT') ||
+        message.includes('Profile') ||
+        message.includes('organization')
+          ? 401
+          : 400;
 
       res.status(status).json({
         ok: false,

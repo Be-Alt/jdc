@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getEnv, getOptionalEnv } from './env.js';
-import { normalizeAppRole, type AppRole, type ProfileRecord } from './auth.js';
+import { getProfileRecord, normalizeAppRole, type AppRole, type ProfileRecord } from './auth.js';
 
 const ACCESS_COOKIE_NAME = 'app_access';
 const REFRESH_COOKIE_NAME = 'app_refresh';
@@ -14,6 +14,7 @@ type JwtPayload = {
   email: string;
   name: string | null;
   role: AppRole;
+  organizationId: string;
   type: JwtTokenType;
   iat: number;
   exp: number;
@@ -24,6 +25,7 @@ export type VerifiedAppJwt = {
   email: string;
   name: string | null;
   role: AppRole;
+  organizationId: string;
   tokenType: JwtTokenType;
 };
 
@@ -74,6 +76,7 @@ function createToken(profile: ProfileRecord, tokenType: JwtTokenType, ttlSeconds
     email: profile.email,
     name: profile.name,
     role: profile.role,
+    organizationId: profile.organizationId,
     type: tokenType,
     iat: now,
     exp: now + ttlSeconds
@@ -201,28 +204,36 @@ export function verifyAppJwt(token: string, expectedType: JwtTokenType = 'access
     throw new Error('JWT expired.');
   }
 
+  if (!payload.organizationId) {
+    throw new Error('JWT organization is missing.');
+  }
+
   return {
     userId: payload.sub,
     email: payload.email,
     name: payload.name,
     role: normalizeAppRole(payload.role),
+    organizationId: payload.organizationId,
     tokenType: payload.type
   };
 }
 
-export function refreshAppSession(refreshToken: string): AppSessionRefreshResult {
+export async function refreshAppSession(refreshToken: string): Promise<AppSessionRefreshResult> {
   const refreshAuth = verifyAppJwt(refreshToken, 'refresh');
-  const profile: ProfileRecord = {
+  const profile = await getProfileRecord({
     userId: refreshAuth.userId,
     email: refreshAuth.email,
-    name: refreshAuth.name,
-    role: refreshAuth.role
-  };
+    name: refreshAuth.name
+  });
   const session = createAppSession(profile);
 
   return {
     auth: {
-      ...refreshAuth,
+      userId: profile.userId,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role,
+      organizationId: profile.organizationId,
       tokenType: 'access'
     },
     refreshedCookies: createAppSessionCookies(session)

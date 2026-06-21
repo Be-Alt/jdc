@@ -46,10 +46,10 @@ export default withPermissionEndpoint('GET,OPTIONS', 'programs.read', async ({ r
         on u.program_id = p.id
       where (${subjectId}::uuid is null or p.subject_id = ${subjectId}::uuid)
         and (${excludeProgramId}::uuid is null or p.id <> ${excludeProgramId}::uuid)
+        and p.organization_id = ${auth.organizationId}::uuid
         and (
           p.is_shared = true
           or p.owner_id = ${auth.userId}::uuid
-          or ${auth.role}::text = 'super_admin'
         )
       group by
         p.id,

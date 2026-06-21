@@ -19,6 +19,7 @@ export function createRoleProtectedHandler(config: RoleEndpointConfig) {
           rows = await sql`
             select id, title, content, created_at
             from public.admin_test_data
+            where organization_id = ${auth.organizationId}::uuid
             order by id asc
           `;
           break;
@@ -26,6 +27,7 @@ export function createRoleProtectedHandler(config: RoleEndpointConfig) {
           rows = await sql`
             select id, title, content, created_at
             from public.user_test_data
+            where organization_id = ${auth.organizationId}::uuid
             order by id asc
           `;
           break;
@@ -33,6 +35,7 @@ export function createRoleProtectedHandler(config: RoleEndpointConfig) {
           rows = await sql`
             select id, title, content, created_at
             from public.student_test_data
+            where organization_id = ${auth.organizationId}::uuid
             order by id asc
           `;
           break;

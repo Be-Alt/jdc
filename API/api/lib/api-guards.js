@@ -1,4 +1,4 @@
-import { getBearerToken, getCookieHeader } from './auth.js';
+import { getBearerToken, getCookieHeader, getProfileRecord } from './auth.js';
 import { getAccessTokenFromCookieHeader, getRefreshTokenFromCookieHeader, refreshAppSession, verifyAppJwt } from './app-jwt.js';
 import { applyCors, getCorsHeaders } from './cors.js';
 import { hasPermission } from './permissions.js';
@@ -40,13 +40,28 @@ function setCookies(res, cookies) {
         res.setHeader('Set-Cookie', cookies);
     }
 }
-export function requireAppSession(req) {
+async function refreshVerifiedAuth(auth) {
+    const profile = await getProfileRecord({
+        userId: auth.userId,
+        email: auth.email,
+        name: auth.name
+    });
+    return {
+        userId: profile.userId,
+        email: profile.email,
+        name: profile.name,
+        role: profile.role,
+        organizationId: profile.organizationId,
+        tokenType: 'access'
+    };
+}
+export async function requireAppSession(req) {
     const cookieHeader = getCookieHeader(req.headers);
     const accessToken = getAccessTokenFromCookieHeader(cookieHeader);
     if (accessToken) {
         try {
             return {
-                auth: verifyAppJwt(accessToken, 'access')
+                auth: await refreshVerifiedAuth(verifyAppJwt(accessToken, 'access'))
             };
         }
         catch (error) {
@@ -58,17 +73,17 @@ export function requireAppSession(req) {
     }
     const refreshToken = getRefreshTokenFromCookieHeader(cookieHeader);
     if (refreshToken) {
-        return refreshAppSession(refreshToken);
+        return await refreshAppSession(refreshToken);
     }
     const bearerToken = getBearerToken(req.headers);
     return {
-        auth: verifyAppJwt(bearerToken, 'access')
+        auth: await refreshVerifiedAuth(verifyAppJwt(bearerToken, 'access'))
     };
 }
 export function withAuthenticatedEndpoint(methods, handler, options) {
     return withPublicEndpoint(methods, async ({ req, res }) => {
         try {
-            const session = requireAppSession(req);
+            const session = await requireAppSession(req);
             setCookies(res, session.refreshedCookies ?? []);
             if (options?.rateLimit) {
                 const rateLimit = await enforceRateLimit(options.rateLimit, {
@@ -91,7 +106,12 @@ export function withAuthenticatedEndpoint(methods, handler, options) {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Authentication failed';
-            const status = message.includes('token') || message.includes('JWT') ? 401 : 400;
+            const status = message.includes('token') ||
+                message.includes('JWT') ||
+                message.includes('Profile') ||
+                message.includes('organization')
+                ? 401
+                : 400;
             res.status(status).json({
                 ok: false,
                 error: message

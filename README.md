@@ -48,6 +48,30 @@ Ce script cree notamment :
 
 Il ajoute aussi par defaut le domaine `lmottet.be`.
 
+### Cloisonnement par organisation
+
+Execute [017_organization_isolation.sql](/Users/orel/Documents/Projets/jdc/API/sql/017_organization_isolation.sql)
+avant de deployer une version de l'API qui inclut le cloisonnement multi-organisation.
+
+Cette migration :
+
+- relie chaque domaine autorise et chaque profil a une organisation
+- rattache les donnees existantes a l'organisation de leur proprietaire
+- ajoute `organization_id` aux donnees metier et aux referentiels modifiables
+- remplace les unicites globales par des unicites par organisation
+- bloque la migration si des relations historiques traversent deja plusieurs organisations
+
+Apres le deploiement, les sessions existantes doivent etre recreees car les anciens JWT ne
+contiennent pas `organizationId`.
+
+Les donnees sensibles sont filtrees par l'organisation de la session, y compris pour les
+roles `super_admin`. Les catalogues generiques non rattaches a une organisation restent :
+
+- les annees scolaires
+- les types DYS et amenagements
+- le catalogue d'observations
+- les types de processus
+
 ## Vercel
 
 Le projet Vercel doit pointer sur le dossier `API`.

@@ -9,6 +9,7 @@ export default withAuthenticatedEndpoint('GET,OPTIONS', async ({ res, auth }) =>
       email: auth.email,
       name: auth.name,
       role: auth.role,
+      organizationId: auth.organizationId,
       permissions: getPermissions(auth.role)
     }
   });
